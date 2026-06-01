@@ -5,12 +5,12 @@ nb = nbf.v4.new_notebook()
 
 # Markdown: Judul
 nb.cells.append(nbf.v4.new_markdown_cell("""# Eksperimen Model Regresi Daya Beli (Model 2)
-Notebook ini membandingkan berbagai model Machine Learning (dari Baseline hingga Kaggle Grandmaster Ensemble) untuk memprediksi **Total Pengeluaran per Kapita** (sebagai proksi Daya Beli) per provinsi di Indonesia.
+Notebook ini membandingkan berbagai model Machine Learning (dari Baseline hingga Model Ensemble) untuk memprediksi **Total Pengeluaran per Kapita** (sebagai proksi Daya Beli) per provinsi di Indonesia.
 
 Sesuai instruksi:
 - Fitur **TPAK** dan **Pct_Penduduk_Miskin** **dieliminasi** dari pemodelan karena memiliki terlalu banyak *missing values* (masing-masing 38 dan 37 baris kosong).
 - Validasi dilakukan secara **Chronological Split** (Train: 2021-2023, Val: 2024, Test: 2025) untuk menghindari data leakage temporal.
-- Kita mengimplementasikan teknik feature engineering khas kompetisi Kaggle dan menggunakan model ensambel (XGBoost, LightGBM, CatBoost).
+- Kita mengimplementasikan beberapa teknik feature engineering tingkat lanjut dan menggunakan model ensambel (XGBoost, LightGBM, CatBoost) untuk memperoleh hasil prediksi yang tangguh.
 """))
 
 # Import
@@ -65,7 +65,7 @@ df_clean.head()
 """))
 
 # Feature Engineering
-nb.cells.append(nbf.v4.new_markdown_cell("""## 3. Kaggle-Style Feature Engineering
+nb.cells.append(nbf.v4.new_markdown_cell("""## 3. Advanced Feature Engineering
 Kita membuat fitur-fitur baru yang merepresentasikan rasio ekonomi penting:
 1. **GDP Deflator proxy**: `PDRB_HargaBerlaku / PDRB_HargaKonstan` (Menunjukkan tingkat harga kumulatif/inflasi regional).
 2. **Real UMP**: `UMP / (1 + Inflasi_Rata_Tahunan)` (Menunjukkan daya beli riil upah minimum terhadap inflasi).
@@ -252,9 +252,9 @@ r2_cb = r2_score(y_test, y_pred_test_cb)
 print(f"CatBoost -> Test MAE: {mae_cb:.2f}, Test RMSE: {rmse_cb:.2f}, R2: {r2_cb:.4f}")
 """))
 
-# Model 6: Kaggle Grandmaster Ensemble (Weighted Average)
-nb.cells.append(nbf.v4.new_markdown_cell("""## 11. Model 6: Kaggle Grandmaster Ensemble
-Teknik rahasia para pemenang kompetisi Kaggle adalah melakukan **Ensembling**. Kita menggabungkan prediksi dari XGBoost, LightGBM, dan CatBoost dengan bobot rata-rata agar menghasilkan prediksi yang jauh lebih kokoh (robust)."""))
+# Model 6: Ensemble Regressor (Weighted Average)
+nb.cells.append(nbf.v4.new_markdown_cell("""## 11. Model 6: Ensemble Regressor
+Pendekatan robust dalam pemodelan data tabular adalah menggunakan metode **Ensemble**. Kita menggabungkan prediksi dari XGBoost, LightGBM, dan CatBoost dengan bobot rata-rata agar menghasilkan prediksi yang jauh lebih kokoh (robust)."""))
 
 nb.cells.append(nbf.v4.new_code_cell("""# Kombinasi bobot ensemble
 # CatBoost & XGBoost biasanya berkinerja sangat baik, mari beri bobot seimbang
@@ -264,14 +264,14 @@ mae_ens = mean_absolute_error(y_test, y_pred_test_ensemble)
 rmse_ens = np.sqrt(mean_squared_error(y_test, y_pred_test_ensemble))
 r2_ens = r2_score(y_test, y_pred_test_ensemble)
 
-print(f"Kaggle Ensemble -> Test MAE: {mae_ens:.2f}, Test RMSE: {rmse_ens:.2f}, R2: {r2_ens:.4f}")
+print(f"Ensemble Regressor -> Test MAE: {mae_ens:.2f}, Test RMSE: {rmse_ens:.2f}, R2: {r2_ens:.4f}")
 """))
 
 # Komparasi Evaluasi
 nb.cells.append(nbf.v4.new_markdown_cell("""## 12. Komparasi Performa Semua Model
 Mari bandingkan tingkat error (MAE & RMSE) serta nilai kecocokan model ($R^2$) secara komprehensif."""))
 
-nb.cells.append(nbf.v4.new_code_cell("""models = ['Ridge Baseline', 'Random Forest', 'XGBoost', 'LightGBM', 'CatBoost', 'Kaggle Ensemble']
+nb.cells.append(nbf.v4.new_code_cell("""models = ['Ridge Baseline', 'Random Forest', 'XGBoost', 'LightGBM', 'CatBoost', 'Ensemble Regressor']
 mae_scores = [mae_base, mae_rf, mae_xgb, mae_lgb, mae_cb, mae_ens]
 rmse_scores = [rmse_base, rmse_rf, rmse_xgb, rmse_lgb, rmse_cb, rmse_ens]
 r2_scores = [r2_base, r2_rf, r2_xgb, r2_lgb, r2_cb, r2_ens]
@@ -309,7 +309,7 @@ plt.show()
 
 # Visualisasi Hasil Aktual vs Prediksi
 nb.cells.append(nbf.v4.new_markdown_cell("""## 13. Visualisasi Hasil Aktual vs Prediksi 2025
-Menampilkan perbandingan data pengeluaran aktual tahun 2025 dengan hasil prediksi model terbaik (Kaggle Ensemble) untuk beberapa provinsi sampel."""))
+Menampilkan perbandingan data pengeluaran aktual tahun 2025 dengan hasil prediksi model terbaik (Ensemble Regressor) untuk beberapa provinsi sampel."""))
 
 nb.cells.append(nbf.v4.new_code_cell("""# Siapkan dataframe untuk plotting
 plot_df = pd.DataFrame({
@@ -327,7 +327,7 @@ x = np.arange(len(sample_plot))
 width = 0.25
 
 plt.bar(x - width, sample_plot['Aktual'], width, label='Aktual (2025)', color='#2ca02c')
-plt.bar(x, sample_plot['Prediksi_Ensemble'], width, label='Kaggle Ensemble', color='#1f77b4')
+plt.bar(x, sample_plot['Prediksi_Ensemble'], width, label='Ensemble Regressor', color='#1f77b4')
 plt.bar(x + width, sample_plot['Prediksi_Ridge'], width, label='Ridge Baseline', color='#d62728')
 
 plt.xlabel('Provinsi')
