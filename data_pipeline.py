@@ -8,8 +8,9 @@ data yang sudah bersih, baru kemudian melakukan Scaling, Imputasi,
 dan pembuatan Fitur Lag. Hal ini secara mutlak mencegah Data Leakage.
 
 Perubahan v2:
-  - Model 1 (LSTM): Drop IHK (missing 2019–2026), tambah fitur inflasi
-    komponen (Inti, HargaDiatur, Bergejolak) dan Harga Minyak.
+  - Model 1 (LSTM): IHK diimputasi untuk 2024–2026 pakai rumus
+    IHK_prev × (1 + Inflasi_MoM/100). Tambah fitur inflasi komponen
+    (Inti, HargaDiatur, Bergejolak) dan Harga Minyak.
   - Model 2 (Regresi): Drop Tahun, ganti ke Real_UMP, PDRB_HargaKonstan,
     TPT, Inflasi_Rata_Tahunan + Provinsi (one-hot). Chronological split.
 ============================================================================
@@ -31,13 +32,13 @@ def get_lstm_pipeline_data(seq_length=12):
     Membaca data time-series murni, membagi chronologically murni (Train -> Val -> Test),
     lalu fit Scaler HANYA pada set Train, serta membuat sequence X, y secara aman.
 
-    Fitur yang digunakan (8):
-      Inflasi_MoM (target sekaligus fitur), BI_Rate, USD_IDR,
+    Fitur yang digunakan (9):
+      Inflasi_MoM (target sekaligus fitur), IHK, BI_Rate, USD_IDR,
       Inflasi_Umum_MoM, Inflasi_Inti_MoM, Inflasi_HargaDiatur_MoM,
       Inflasi_Bergejolak_MoM, Harga_Minyak_USD
 
-    IHK DIBUANG karena >50% data hilang (post-2019) dan imputasi 7 tahun
-    terlalu banyak untuk valid.
+    IHK missing 2024–2026 diimputasi pakai rumus:
+      IHK_bulan_ini = IHK_bulan_lalu × (1 + Inflasi_MoM / 100)
     """
     print("\n" + "=" * 50)
     print("  LSTM Data Pipeline (Chronological Split) v2")
@@ -67,9 +68,20 @@ def get_lstm_pipeline_data(seq_length=12):
     for col in komponen_cols:
         df[col] = df[col].ffill().bfill()
 
-    # 2. Pilih fitur (TANPA IHK)
+    #    IHK: imputasi 2024–2026 pakai rumus IHK_prev × (1 + Inflasi_MoM/100)
+    #    Missing hanya 26 baris dari 254 total (~10%), valid untuk imputasi.
+    ihk_null_mask = df["IHK"].isna()
+    if ihk_null_mask.any():
+        for idx in df[ihk_null_mask].index:
+            prev_idx = idx - 1
+            if prev_idx >= 0 and not np.isnan(df.loc[prev_idx, "IHK"]):
+                inflasi = df.loc[idx, "Inflasi_MoM"]
+                df.loc[idx, "IHK"] = df.loc[prev_idx, "IHK"] * (1 + inflasi / 100)
+        df["IHK"] = df["IHK"].ffill().bfill()
+
+    # 2. Pilih fitur (DENGAN IHK yang sudah diimputasi)
     feature_cols = [
-        "Inflasi_MoM", "BI_Rate", "USD_IDR",
+        "Inflasi_MoM", "IHK", "BI_Rate", "USD_IDR",
         "Inflasi_Umum_MoM", "Inflasi_Inti_MoM",
         "Inflasi_HargaDiatur_MoM", "Inflasi_Bergejolak_MoM",
         "Harga_Minyak_USD"
