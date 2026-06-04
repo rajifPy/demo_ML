@@ -49,11 +49,18 @@ def main():
     df.fillna(method='ffill', inplace=True)
     df.fillna(method='bfill', inplace=True)
 
-    features = ['Inflasi_MoM', 'IHK', 'BI_Rate', 'USD_IDR']
-    df_lstm = df[features].copy()
+    # Semua fitur numerik kecuali target (Inflasi_MoM tetap di indeks 0)
+    exclude_cols = ['Tanggal', 'Bulan', 'Tahun']
+    feature_cols = [c for c in df.columns if c not in exclude_cols]
+    # Pastikan Inflasi_MoM di posisi pertama
+    feature_cols.remove('Inflasi_MoM')
+    feature_cols = ['Inflasi_MoM'] + feature_cols
+    n_features = len(feature_cols)
+    
+    df_lstm = df[feature_cols].copy()
 
     scaler = MinMaxScaler()
-    df_lstm_scaled = pd.DataFrame(scaler.fit_transform(df_lstm), columns=features, index=df_lstm.index)
+    df_lstm_scaled = pd.DataFrame(scaler.fit_transform(df_lstm), columns=feature_cols, index=df_lstm.index)
 
     lag_steps = 12
     X_seq, y_seq = create_lstm_sequences(df_lstm_scaled, lag_steps)
@@ -62,7 +69,7 @@ def main():
     X_train_lstm = torch.tensor(X_seq, dtype=torch.float32)
     y_train_lstm = torch.tensor(y_seq, dtype=torch.float32).view(-1, 1)
 
-    lstm_model = LSTMModel(input_size=4, hidden_size=64, num_layers=2, output_size=1)
+    lstm_model = LSTMModel(input_size=n_features, hidden_size=64, num_layers=2, output_size=1)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(lstm_model.parameters(), lr=0.001)
 
@@ -80,8 +87,12 @@ def main():
 
     os.makedirs('models', exist_ok=True)
     
-    # Save model state dict
-    torch.save(lstm_model.state_dict(), 'models/lstm_model.pt')
+    # Simpan checkpoint dengan metadata
+    torch.save({
+        'model_state_dict': lstm_model.state_dict(),
+        'input_size': n_features,
+        'seq_length': lag_steps,
+    }, 'models/lstm_model.pt')
     
     # Save scaler
     with open('models/lstm_scaler.pkl', 'wb') as f:

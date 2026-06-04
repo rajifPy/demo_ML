@@ -37,7 +37,12 @@ def load_models():
     ridge_path = os.path.join(models_dir, 'best_daya_beli_ridge.pkl')
     if os.path.exists(ridge_path) and RIDGE_MODEL is None:
         with open(ridge_path, 'rb') as f:
-            RIDGE_MODEL = pickle.load(f)
+            raw = pickle.load(f)
+        # Model bisa berupa pipeline langsung atau dictionary bundle
+        if isinstance(raw, dict) and 'pipeline' in raw:
+            RIDGE_MODEL = raw['pipeline']
+        else:
+            RIDGE_MODEL = raw
             
     lstm_path = os.path.join(models_dir, 'lstm_model.pt')
     scaler_path = os.path.join(models_dir, 'lstm_scaler.pkl')
@@ -46,8 +51,19 @@ def load_models():
         with open(scaler_path, 'rb') as f:
             LSTM_SCALER = pickle.load(f)
         
-        LSTM_MODEL = LSTMModel(input_size=4, hidden_size=64, num_layers=2, output_size=1)
-        LSTM_MODEL.load_state_dict(torch.load(lstm_path, weights_only=True))
+        # Load checkpoint dan ambil metadata input_size
+        checkpoint = torch.load(lstm_path, weights_only=False)
+        if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+            input_size = checkpoint.get('input_size', 44)
+            seq_length = checkpoint.get('seq_length', 12)
+            state_dict = checkpoint['model_state_dict']
+        else:
+            input_size = 44
+            seq_length = 12
+            state_dict = checkpoint
+        
+        LSTM_MODEL = LSTMModel(input_size=input_size, hidden_size=64, num_layers=2, output_size=1)
+        LSTM_MODEL.load_state_dict(state_dict)
         LSTM_MODEL.eval()
         
         df = pd.read_csv(data_path)
@@ -68,15 +84,19 @@ def load_models():
         df.fillna(method='ffill', inplace=True)
         df.fillna(method='bfill', inplace=True)
 
-        features = ['Inflasi_MoM', 'IHK', 'BI_Rate', 'USD_IDR']
-        last_12 = df[features].tail(12)
-        scaled_last_12 = LSTM_SCALER.transform(last_12)
-        X_pred = torch.tensor(np.array([scaled_last_12]), dtype=torch.float32)
+        # Semua fitur numerik yang digunakan LSTM
+        feature_cols = [c for c in df.columns
+                       if c not in ('Tanggal', 'Bulan', 'Tahun', 'Inflasi_MoM')]
+        feature_cols = ['Inflasi_MoM'] + feature_cols  # Target di indeks 0
+        last_seq = df[feature_cols].tail(seq_length)
+        scaled_last = LSTM_SCALER.transform(last_seq)
+        X_pred = torch.tensor(np.array([scaled_last]), dtype=torch.float32)
         
         with torch.no_grad():
             pred_scaled = LSTM_MODEL(X_pred).numpy()
             
-        dummy = np.zeros((1, 4))
+        n_features = len(feature_cols)
+        dummy = np.zeros((1, n_features))
         dummy[0, 0] = pred_scaled[0, 0]
         inflasi_pred = LSTM_SCALER.inverse_transform(dummy)[0, 0]
         INFLASI_PRED_MEM = inflasi_pred
@@ -152,17 +172,12 @@ def forecasting_page(request):
 
 
 def get_regression_dummy_data(inflasi_val):
+    # Model Ridge membutuhkan: Real_UMP, TPT, PDRB_HargaKonstan, Inflasi_Rata_Tahunan, Provinsi
     return pd.DataFrame([{
-        'Tahun': 2024,
-        'UMP': 3000000.0, 
+        'Real_UMP': 3000000.0 / (1 + inflasi_val),
         'TPT': 5.5,
-        'PDRB_HargaBerlaku': 800000.0,
         'PDRB_HargaKonstan': 500000.0,
         'Inflasi_Rata_Tahunan': inflasi_val,
-        'GDP_Deflator': 1.6,
-        'Real_UMP': 3000000.0 / (1 + inflasi_val),
-        'PDRB_to_UMP': 0.16,
-        'TPT_x_UMP': 5.5 * 3000000.0,
         'Provinsi': 'JAWA TIMUR'
     }])
 
