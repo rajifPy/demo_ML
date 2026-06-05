@@ -6,9 +6,9 @@
   Dengan grid search untuk parameter optimal (p, d, q)
   
   Output:
-    - models/arima_inflasi.pkl          → Model ARIMA terbaik
-    - models/arima_metrics.pkl          → Metrik evaluasi
-    - models/arima_forecast.pkl         → Forecast results
+    - models/arima_inflasi.pkl          -> Model ARIMA terbaik
+    - models/arima_metrics.pkl          -> Metrik evaluasi
+    - models/arima_forecast.pkl         -> Forecast results
 ============================================================================
 """
 
@@ -86,14 +86,14 @@ def check_stationarity(ts: pd.Series, max_diff: int = 2) -> int:
         p_value = result[1]
         is_stationary = p_value <= 0.05
         
-        status = "✓ STATIONER" if is_stationary else "✗ Belum stationer"
-        print(f"  {label}: ADF={result[0]:.4f}, p={p_value:.4f} → {status}")
+        status = "STATIONER" if is_stationary else "Belum stationer"
+        print(f"  {label}: ADF={result[0]:.4f}, p={p_value:.4f} -> {status}")
         
         if is_stationary:
-            print(f"  → Rekomendasi: d = {d}")
+            print(f"  Rekomendasi: d = {d}")
             return d
     
-    print(f"  → Data belum stationer setelah {max_diff} differencing, gunakan d={max_diff}")
+    print(f"  -> Data belum stationer setelah {max_diff} differencing, gunakan d={max_diff}")
     return max_diff
 
 
@@ -160,7 +160,7 @@ def grid_search_arima(ts: pd.Series, d: int,
     for r in all_results[:5]:
         print(f"  {str(r['order']):<15} {r['aic']:>10.2f} {r['mae']:>10.4f} {r['rmse']:>10.4f}")
     
-    print(f"\n  ✓ Best: ARIMA{best_order} (AIC={best_aic:.2f})")
+    print(f"  Best: ARIMA{best_order} (AIC={best_aic:.2f})")
     
     return {
         'best_model': best_model,
@@ -321,7 +321,7 @@ if __name__ == "__main__":
     # Save ARIMA model
     with open(MODEL_PATH, 'wb') as f:
         pickle.dump(final['model'], f)
-    print(f"  ✓ Model saved: {MODEL_PATH}")
+    print(f"  [OK] Model saved: {MODEL_PATH}")
     
     # Save metrics
     metrics = {
@@ -335,7 +335,7 @@ if __name__ == "__main__":
     }
     with open(METRICS_PATH, 'wb') as f:
         pickle.dump(metrics, f)
-    print(f"  ✓ Metrics saved: {METRICS_PATH}")
+    print(f"  [OK] Metrics saved: {METRICS_PATH}")
     
     # Save forecast
     forecast_data = {
@@ -346,7 +346,7 @@ if __name__ == "__main__":
     }
     with open(FORECAST_PATH, 'wb') as f:
         pickle.dump(forecast_data, f)
-    print(f"  ✓ Forecast saved: {FORECAST_PATH}")
+    print(f"  [OK] Forecast saved: {FORECAST_PATH}")
     
     print("\n" + "=" * 60)
     print("SELESAI!")
