@@ -10,30 +10,32 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <style>
         :root {
-            --bg-dark: #131722;
-            --bg-panel: #1A1E2E;
-            --bg-card: #1E222D;
-            --bg-elevated: #262932;
-            --bg-hover: rgba(41, 98, 255, 0.08);
+            --bg-dark: #FFFFFF;
+            --bg-panel: #F8F9FB;
+            --bg-card: #FFFFFF;
+            --bg-elevated: #F1F3F6;
+            --bg-hover: rgba(41, 98, 255, 0.06);
             --accent-primary: #2962FF;
             --accent-primary-hover: #1E53E5;
-            --accent-primary-dim: rgba(41, 98, 255, 0.15);
-            --accent-primary-glow: rgba(41, 98, 255, 0.4);
+            --accent-primary-dim: rgba(41, 98, 255, 0.1);
+            --accent-primary-glow: rgba(41, 98, 255, 0.3);
             --accent-secondary: #26A69A;
             --accent-tertiary: #AB47BC;
             --accent-warning: #FFB300;
             --accent-info: #00BCD4;
             --positive: #26A69A;
             --negative: #EF5350;
-            --text-primary: #D1D4DC;
-            --text-secondary: #868993;
-            --text-tertiary: #5D606B;
-            --border-color: #2A2E39;
-            --border-hover: #363A45;
+            --text-primary: #131722;
+            --text-secondary: #5D606B;
+            --text-tertiary: #868993;
+            --border-color: #E0E3EB;
+            --border-hover: #CFD3DC;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html { scroll-behavior: smooth; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg-dark); color: var(--text-primary); overflow-x: hidden; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-panel); color: var(--text-primary); overflow-x: hidden; }
         a { text-decoration: none; color: inherit; }
 
         /* ===== NAVBAR ===== */
@@ -41,8 +43,9 @@
             position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
             display: flex; align-items: center; justify-content: space-between;
             padding: 0 32px; height: 56px;
-            background: rgba(26, 30, 46, 0.92); backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border-color);
+            box-shadow: var(--shadow-sm);
         }
         .lp-logo { display: flex; align-items: center; gap: 10px; padding-right: 20px; border-right: 1px solid var(--border-color); height: 32px; }
         .lp-logo-icon {
@@ -67,12 +70,13 @@
         .hero {
             min-height: 90vh; display: flex; align-items: center; justify-content: center;
             position: relative; padding: 120px 40px 80px; overflow: hidden;
+            background: var(--bg-dark);
         }
         .hero-bg {
             position: absolute; inset: 0;
             background:
-                radial-gradient(ellipse at 50% 30%, rgba(41, 98, 255, 0.12) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 80%, rgba(38, 166, 154, 0.06) 0%, transparent 40%);
+                radial-gradient(ellipse at 50% 30%, rgba(41, 98, 255, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(38, 166, 154, 0.05) 0%, transparent 40%);
         }
         #particles-canvas { position: absolute; inset: 0; pointer-events: none; }
         .hero-content { position: relative; z-index: 2; max-width: 900px; text-align: center; }
@@ -98,13 +102,14 @@
             padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;
             display: inline-flex; align-items: center; gap: 8px; transition: all 0.15s;
         }
-        .btn-hero.primary { background: var(--accent-primary); color: #fff; }
-        .btn-hero.primary:hover { background: var(--accent-primary-hover); transform: translateY(-1px); }
+        .btn-hero.primary { background: var(--accent-primary); color: #fff; box-shadow: 0 4px 12px rgba(41, 98, 255, 0.3); }
+        .btn-hero.primary:hover { background: var(--accent-primary-hover); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(41, 98, 255, 0.4); }
         .btn-hero.secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); }
         .btn-hero.secondary:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
 
         /* ===== SECTION COMMON ===== */
-        .section { padding: 80px 32px; position: relative; }
+        .section { padding: 80px 32px; position: relative; background: var(--bg-panel); }
+        .section.alt { background: var(--bg-dark); }
         .section-inner { max-width: 1280px; margin: 0 auto; }
         .section-header { text-align: center; margin-bottom: 48px; }
         .section-header .tag {
@@ -116,20 +121,15 @@
         .section-header p { font-size: 15px; color: var(--text-secondary); max-width: 600px; margin: 0 auto; line-height: 1.5; }
 
         /* ===== KPI STATS ===== */
-        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
         .stat-card {
             background: var(--bg-card); border: 1px solid var(--border-color);
             border-radius: 8px; padding: 20px;
             position: relative; overflow: hidden;
+            box-shadow: var(--shadow-sm);
             transition: all 0.15s;
         }
-        .stat-card:hover { border-color: var(--accent-primary); }
-        .stat-card::before {
-            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
-            background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
-            opacity: 0; transition: opacity 0.15s;
-        }
-        .stat-card:hover::before { opacity: 1; }
+        .stat-card:hover { border-color: var(--accent-primary); box-shadow: var(--shadow-md); transform: translateY(-2px); }
         .stat-label {
             font-size: 11px; color: var(--text-secondary);
             text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px;
@@ -146,7 +146,7 @@
         /* ===== TICKER ===== */
         .ticker-wrap {
             overflow: hidden; white-space: nowrap;
-            background: var(--bg-panel); border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);
+            background: var(--bg-dark); border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);
             padding: 10px 0;
         }
         .ticker-content { display: inline-block; animation: ticker 40s linear infinite; }
@@ -156,15 +156,16 @@
         @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
 
         /* ===== FEATURES GRID ===== */
-        .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
         .feature-card {
             background: var(--bg-card); border: 1px solid var(--border-color);
             border-radius: 8px; padding: 24px; transition: all 0.15s;
             position: relative; overflow: hidden;
+            box-shadow: var(--shadow-sm);
         }
-        .feature-card:hover { border-color: var(--accent-primary); transform: translateY(-2px); }
+        .feature-card:hover { border-color: var(--accent-primary); transform: translateY(-2px); box-shadow: var(--shadow-md); }
         .feature-icon {
-            width: 40px; height: 40px; border-radius: 8px;
+            width: 44px; height: 44px; border-radius: 8px;
             background: var(--accent-primary-dim); color: var(--accent-primary);
             display: flex; align-items: center; justify-content: center;
             font-size: 18px; margin-bottom: 16px;
@@ -176,6 +177,7 @@
         .flow-container {
             background: var(--bg-card); border: 1px solid var(--border-color);
             border-radius: 8px; padding: 32px; position: relative; overflow: hidden;
+            box-shadow: var(--shadow-sm);
         }
         .flow-svg { width: 100%; height: 300px; }
 
@@ -186,6 +188,7 @@
             display: inline-block; margin: 0 12px; padding: 8px 16px;
             background: var(--bg-card); border: 1px solid var(--border-color);
             border-radius: 6px; font-size: 13px; color: var(--text-primary); font-weight: 500;
+            box-shadow: var(--shadow-sm);
         }
         .tech-badge i { color: var(--accent-primary); margin-right: 6px; }
 
@@ -194,8 +197,9 @@
         .team-card {
             background: var(--bg-card); border: 1px solid var(--border-color);
             border-radius: 8px; padding: 20px; text-align: center; transition: all 0.15s;
+            box-shadow: var(--shadow-sm);
         }
-        .team-card:hover { border-color: var(--accent-primary); }
+        .team-card:hover { border-color: var(--accent-primary); box-shadow: var(--shadow-md); transform: translateY(-2px); }
         .team-avatar {
             width: 56px; height: 56px; border-radius: 50%; margin: 0 auto 12px;
             background: linear-gradient(135deg, var(--accent-primary), var(--accent-info));
@@ -206,7 +210,7 @@
         .team-role { font-size: 11px; color: var(--text-secondary); }
 
         /* ===== FOOTER ===== */
-        .footer { background: var(--bg-panel); border-top: 1px solid var(--border-color); padding: 48px 32px 24px; }
+        .footer { background: var(--bg-dark); border-top: 1px solid var(--border-color); padding: 48px 32px 24px; }
         .footer-inner { max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 32px; }
         .footer-col h4 { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
         .footer-col a { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; transition: color 0.15s; }
@@ -267,7 +271,6 @@
             <span>Beras <strong>Rp 12,500/kg</strong> <span class="up">▲ 2.30%</span></span>
             <span>BI Rate <strong>5.75%</strong></span>
             <span>GDP/PPP <strong>$14,254</strong> <span class="up">▲ 3.20%</span></span>
-            <!-- Duplicate for seamless loop -->
             <span>IHK <strong>105.23</strong> <span class="up">▲ 0.12%</span></span>
             <span>USD/IDR <strong>18,037</strong> <span class="down">▼ 0.05%</span></span>
             <span>Brent Oil <strong>$78.45</strong> <span class="up">▲ 1.20%</span></span>
@@ -307,7 +310,7 @@
     </section>
 
     <!-- KPI Stats -->
-    <section class="section" style="padding-top: 0;">
+    <section class="section">
         <div class="section-inner">
             <div class="section-header reveal">
                 <span class="tag">Live Indicators</span>
@@ -344,7 +347,7 @@
     </section>
 
     <!-- Features -->
-    <section class="section" id="features">
+    <section class="section alt" id="features">
         <div class="section-inner">
             <div class="section-header reveal">
                 <span class="tag">Features</span>
@@ -396,49 +399,45 @@
             </div>
             <div class="flow-container reveal">
                 <svg class="flow-svg" viewBox="0 0 1000 200">
-                    <!-- Sources -->
                     <g>
-                        <rect x="20" y="60" width="100" height="80" rx="8" fill="rgba(41,98,255,0.15)" stroke="#2962FF"/>
-                        <text x="70" y="95" text-anchor="middle" fill="#D1D4DC" font-size="13" font-weight="600">BPS</text>
-                        <text x="70" y="115" text-anchor="middle" fill="#868993" font-size="11">Inflasi, UMP, PDRB</text>
+                        <rect x="20" y="60" width="100" height="80" rx="8" fill="rgba(41,98,255,0.1)" stroke="#2962FF"/>
+                        <text x="70" y="95" text-anchor="middle" fill="#131722" font-size="13" font-weight="600">BPS</text>
+                        <text x="70" y="115" text-anchor="middle" fill="#5D606B" font-size="11">Inflasi, UMP, PDRB</text>
                     </g>
                     <g>
-                        <rect x="20" y="20" width="100" height="30" rx="6" fill="rgba(38,166,154,0.15)" stroke="#26A69A"/>
-                        <text x="70" y="40" text-anchor="middle" fill="#D1D4DC" font-size="12" font-weight="600">Bank Indonesia</text>
+                        <rect x="20" y="20" width="100" height="30" rx="6" fill="rgba(38,166,154,0.1)" stroke="#26A69A"/>
+                        <text x="70" y="40" text-anchor="middle" fill="#131722" font-size="12" font-weight="600">Bank Indonesia</text>
                     </g>
                     <g>
-                        <rect x="20" y="150" width="100" height="30" rx="6" fill="rgba(0,188,212,0.15)" stroke="#00BCD4"/>
-                        <text x="70" y="170" text-anchor="middle" fill="#D1D4DC" font-size="12" font-weight="600">World Bank</text>
+                        <rect x="20" y="150" width="100" height="30" rx="6" fill="rgba(0,188,212,0.1)" stroke="#00BCD4"/>
+                        <text x="70" y="170" text-anchor="middle" fill="#131722" font-size="12" font-weight="600">World Bank</text>
                     </g>
                     <g>
-                        <rect x="20" y="60" width="100" height="80" rx="8" fill="rgba(171,71,188,0.15)" stroke="#AB47BC" transform="translate(150 0)"/>
-                        <text x="270" y="95" text-anchor="middle" fill="#D1D4DC" font-size="12" font-weight="600">23 Dataset</text>
-                        <text x="270" y="115" text-anchor="middle" fill="#868993" font-size="11">Cleaned & Imputed</text>
+                        <rect x="20" y="60" width="100" height="80" rx="8" fill="rgba(171,71,188,0.1)" stroke="#AB47BC" transform="translate(150 0)"/>
+                        <text x="270" y="95" text-anchor="middle" fill="#131722" font-size="12" font-weight="600">23 Dataset</text>
+                        <text x="270" y="115" text-anchor="middle" fill="#5D606B" font-size="11">Cleaned & Imputed</text>
                     </g>
-                    <!-- Model -->
                     <g>
-                        <rect x="450" y="50" width="120" height="100" rx="8" fill="rgba(41,98,255,0.25)" stroke="#2962FF" stroke-width="2"/>
-                        <text x="510" y="80" text-anchor="middle" fill="#D1D4DC" font-size="13" font-weight="700">LSTM + ARIMA</text>
-                        <text x="510" y="100" text-anchor="middle" fill="#868993" font-size="11">+ Ridge</text>
+                        <rect x="450" y="50" width="120" height="100" rx="8" fill="rgba(41,98,255,0.15)" stroke="#2962FF" stroke-width="2"/>
+                        <text x="510" y="80" text-anchor="middle" fill="#131722" font-size="13" font-weight="700">LSTM + ARIMA</text>
+                        <text x="510" y="100" text-anchor="middle" fill="#5D606B" font-size="11">+ Ridge</text>
                         <text x="510" y="120" text-anchor="middle" fill="#26A69A" font-size="11" font-weight="600">PyTorch • sklearn</text>
                     </g>
-                    <!-- Output -->
                     <g>
-                        <rect x="750" y="20" width="220" height="50" rx="6" fill="rgba(38,166,154,0.15)" stroke="#26A69A"/>
-                        <text x="860" y="45" text-anchor="middle" fill="#D1D4DC" font-size="13" font-weight="600">Prediksi Inflasi</text>
-                        <text x="860" y="62" text-anchor="middle" fill="#868993" font-size="11">Real-time Forecast</text>
+                        <rect x="750" y="20" width="220" height="50" rx="6" fill="rgba(38,166,154,0.1)" stroke="#26A69A"/>
+                        <text x="860" y="45" text-anchor="middle" fill="#131722" font-size="13" font-weight="600">Prediksi Inflasi</text>
+                        <text x="860" y="62" text-anchor="middle" fill="#5D606B" font-size="11">Real-time Forecast</text>
                     </g>
                     <g>
-                        <rect x="750" y="80" width="220" height="50" rx="6" fill="rgba(41,98,255,0.15)" stroke="#2962FF"/>
-                        <text x="860" y="105" text-anchor="middle" fill="#D1D4DC" font-size="13" font-weight="600">Daya Beli per Provinsi</text>
-                        <text x="860" y="122" text-anchor="middle" fill="#868993" font-size="11">38 Provinsi</text>
+                        <rect x="750" y="80" width="220" height="50" rx="6" fill="rgba(41,98,255,0.1)" stroke="#2962FF"/>
+                        <text x="860" y="105" text-anchor="middle" fill="#131722" font-size="13" font-weight="600">Daya Beli per Provinsi</text>
+                        <text x="860" y="122" text-anchor="middle" fill="#5D606B" font-size="11">38 Provinsi</text>
                     </g>
                     <g>
-                        <rect x="750" y="140" width="220" height="50" rx="6" fill="rgba(239,83,80,0.15)" stroke="#EF5350"/>
-                        <text x="860" y="165" text-anchor="middle" fill="#D1D4DC" font-size="13" font-weight="600">Simulasi Kebijakan</text>
-                        <text x="860" y="182" text-anchor="middle" fill="#868993" font-size="11">What-If Scenarios</text>
+                        <rect x="750" y="140" width="220" height="50" rx="6" fill="rgba(239,83,80,0.1)" stroke="#EF5350"/>
+                        <text x="860" y="165" text-anchor="middle" fill="#131722" font-size="13" font-weight="600">Simulasi Kebijakan</text>
+                        <text x="860" y="182" text-anchor="middle" fill="#5D606B" font-size="11">What-If Scenarios</text>
                     </g>
-                    <!-- Arrows -->
                     <g stroke="#2962FF" stroke-width="1.5" fill="none" stroke-dasharray="4 4">
                         <path d="M 120 100 L 270 100">
                             <animate attributeName="stroke-dashoffset" values="0;-8" dur="0.5s" repeatCount="indefinite"/>
@@ -464,7 +463,7 @@
     </section>
 
     <!-- Tech Stack -->
-    <section class="section">
+    <section class="section alt">
         <div class="section-inner">
             <div class="section-header reveal">
                 <span class="tag">Technology</span>
@@ -482,7 +481,6 @@
                     <span class="tech-badge"><i class="fas fa-map"></i> Leaflet</span>
                     <span class="tech-badge"><i class="fas fa-server"></i> Statsmodels</span>
                     <span class="tech-badge"><i class="fas fa-globe"></i> World Bank API</span>
-                    <!-- Duplicate for seamless loop -->
                     <span class="tech-badge"><i class="fab fa-python"></i> Python 3.12</span>
                     <span class="tech-badge"><i class="fas fa-fire"></i> PyTorch</span>
                     <span class="tech-badge"><i class="fas fa-chart-bar"></i> Scikit-learn</span>
@@ -574,13 +572,11 @@
     </footer>
 
     <script>
-        // Scroll reveal with IntersectionObserver
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in-view'); });
         }, { threshold: 0.1 });
         document.querySelectorAll('.reveal, .stagger').forEach(el => observer.observe(el));
 
-        // Counter animation
         function animateCounter(el) {
             const text = el.textContent;
             const match = text.match(/[\d.]+/);
@@ -605,7 +601,6 @@
         }, { threshold: 0.5 });
         document.querySelectorAll('.stat-value').forEach(el => statObserver.observe(el));
 
-        // Sparklines
         function drawSpark(canvasId, data, color) {
             const canvas = document.getElementById(canvasId);
             if (!canvas) return;
@@ -620,7 +615,6 @@
         drawSpark('spark-usd', [16235, 16455, 16490, 16665, 16630, 17110, 17547, 18037], '#EF5350');
         drawSpark('spark-prov', [30, 32, 34, 35, 36, 37, 38, 38], '#AB47BC');
 
-        // Particles
         const canvas = document.getElementById('particles-canvas');
         const ctx = canvas.getContext('2d');
         let particles = [];
@@ -638,7 +632,6 @@
                 ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
                 ctx.fillStyle = 'rgba(41, 98, 255, 0.4)'; ctx.fill();
             });
-            // Connect close particles
             for (let i = 0; i < particles.length; i++) {
                 for (let j = i + 1; j < particles.length; j++) {
                     const dx = particles[i].x - particles[j].x;
@@ -647,7 +640,7 @@
                     if (dist < 100) {
                         ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y);
                         ctx.lineTo(particles[j].x, particles[j].y);
-                        ctx.strokeStyle = 'rgba(41, 98, 255, ' + (1 - dist / 100) * 0.15 + ')';
+                        ctx.strokeStyle = 'rgba(41, 98, 255, ' + (1 - dist / 100) * 0.2 + ')';
                         ctx.lineWidth = 0.5; ctx.stroke();
                     }
                 }

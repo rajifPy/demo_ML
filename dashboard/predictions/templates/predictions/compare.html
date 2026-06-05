@@ -559,12 +559,12 @@ async function runCompare() {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { labels: { color: '#868993', font: { weight: 600, size: 12 } } },
+                    legend: { labels: { color: '#5D606B', font: { weight: 600, size: 12 } } },
                     tooltip: {
-                        backgroundColor: 'rgba(30,34,45,0.95)',
-                        titleColor: '#D1D4DC',
-                        bodyColor: '#868993',
-                        borderColor: '#2A2E39',
+                        backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                        titleColor: '#131722',
+                        bodyColor: '#5D606B',
+                        borderColor: '#E0E3EB',
                         borderWidth: 1,
                         callbacks: {
                             label: function(context) {
@@ -574,8 +574,8 @@ async function runCompare() {
                     }
                 },
                 scales: {
-                    x: { ticks: { color: '#868993' }, grid: { color: '#2A2E39' } },
-                    y: { ticks: { color: '#868993', callback: v => formatValue(v, metric) }, grid: { color: '#2A2E39' } }
+                    x: { ticks: { color: '#5D606B' }, grid: { color: 'rgba(224, 227, 235, 0.8)' } },
+                    y: { ticks: { color: '#5D606B', callback: v => formatValue(v, metric) }, grid: { color: 'rgba(224, 227, 235, 0.8)' } }
                 },
                 interaction: { intersect: false, mode: 'index' }
             }
@@ -677,12 +677,12 @@ async function loadRadarChart(provs) {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { labels: { color: '#868993', font: { weight: 600, size: 12 } } },
+                    legend: { labels: { color: '#5D606B', font: { weight: 600, size: 12 } } },
                     tooltip: {
-                        backgroundColor: 'rgba(30,34,45,0.95)',
-                        titleColor: '#D1D4DC',
-                        bodyColor: '#868993',
-                        borderColor: '#2A2E39',
+                        backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                        titleColor: '#131722',
+                        bodyColor: '#5D606B',
+                        borderColor: '#E0E3EB',
                         borderWidth: 1,
                         callbacks: {
                             label: function(context) {
@@ -697,10 +697,10 @@ async function loadRadarChart(provs) {
                 },
                 scales: {
                     r: {
-                        angleLines: { color: '#2A2E39' },
-                        grid: { color: '#2A2E39' },
-                        pointLabels: { color: '#868993', font: { weight: 600, size: 12 } },
-                        ticks: { color: '#868993', backdropColor: 'transparent' }
+                        angleLines: { color: 'rgba(224, 227, 235, 0.8)' },
+                        grid: { color: 'rgba(224, 227, 235, 0.8)' },
+                        pointLabels: { color: '#5D606B', font: { weight: 600, size: 12 } },
+                        ticks: { color: '#5D606B', backdropColor: 'transparent' }
                     }
                 }
             }

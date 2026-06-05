@@ -1,20 +1,20 @@
 /* =================================================================
-   TRADINGVIEW-INSPIRED DESIGN SYSTEM
+   TRADINGVIEW LIGHT THEME — Clean, Bright, Professional
    ================================================================= */
 
 :root {
     /* Backgrounds */
-    --bg-dark: #131722;
-    --bg-panel: #1A1E2E;
-    --bg-card: #1E222D;
-    --bg-elevated: #262932;
-    --bg-hover: rgba(41, 98, 255, 0.08);
+    --bg-dark: #FFFFFF;
+    --bg-panel: #F8F9FB;
+    --bg-card: #FFFFFF;
+    --bg-elevated: #F1F3F6;
+    --bg-hover: rgba(41, 98, 255, 0.06);
 
     /* Accent Colors (TradingView-inspired) */
     --accent-primary: #2962FF;
     --accent-primary-hover: #1E53E5;
-    --accent-primary-dim: rgba(41, 98, 255, 0.15);
-    --accent-primary-glow: rgba(41, 98, 255, 0.4);
+    --accent-primary-dim: rgba(41, 98, 255, 0.1);
+    --accent-primary-glow: rgba(41, 98, 255, 0.3);
 
     --accent-secondary: #26A69A;
     --accent-tertiary: #AB47BC;
@@ -23,25 +23,30 @@
 
     /* Status Colors */
     --positive: #26A69A;
-    --positive-dim: rgba(38, 166, 154, 0.15);
+    --positive-dim: rgba(38, 166, 154, 0.1);
     --negative: #EF5350;
-    --negative-dim: rgba(239, 83, 80, 0.15);
+    --negative-dim: rgba(239, 83, 80, 0.1);
     --warning: #FFB300;
-    --warning-dim: rgba(255, 179, 0, 0.15);
-    --neutral: #787B86;
+    --warning-dim: rgba(255, 179, 0, 0.1);
+    --neutral: #9598A1;
 
     /* Text */
-    --text-primary: #D1D4DC;
-    --text-secondary: #868993;
-    --text-tertiary: #5D606B;
-    --text-inverse: #131722;
+    --text-primary: #131722;
+    --text-secondary: #5D606B;
+    --text-tertiary: #868993;
+    --text-inverse: #FFFFFF;
 
     /* Borders */
-    --border-color: #2A2E39;
-    --border-hover: #363A45;
+    --border-color: #E0E3EB;
+    --border-hover: #CFD3DC;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
+    --shadow-lg: 0 10px 30px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.04);
 
     /* Chart colors */
-    --chart-grid: rgba(54, 58, 69, 0.5);
+    --chart-grid: rgba(224, 227, 235, 0.8);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -60,14 +65,14 @@ body {
 .dashboard-container { display: flex; flex-direction: column; min-height: 100vh; }
 
 /* =================================================================
-   TOP NAVBAR — TradingView Style
+   TOP NAVBAR — TradingView Light Style
    ================================================================= */
 .top-navbar {
     display: flex; align-items: center; justify-content: space-between;
-    background-color: var(--bg-panel);
+    background-color: var(--bg-dark);
     border-bottom: 1px solid var(--border-color);
     padding: 0 24px; height: 56px; position: sticky; top: 0; z-index: 100;
-    backdrop-filter: blur(20px);
+    box-shadow: var(--shadow-sm);
 }
 
 .nav-left { display: flex; align-items: center; gap: 32px; }
@@ -107,7 +112,7 @@ body {
 }
 .nav-links li.active a svg { opacity: 1; stroke: var(--accent-primary); }
 
-/* Right side - search, notifications, user */
+/* Right side */
 .header-right { display: flex; align-items: center; gap: 12px; }
 
 .user-profile {
@@ -132,10 +137,11 @@ body {
 /* =================================================================
    MAIN CONTENT
    ================================================================= */
-.main-content { flex: 1; display: flex; flex-direction: column; }
+.main-content { flex: 1; display: flex; flex-direction: column; background: var(--bg-panel); }
 
 .page-title-area {
     padding: 24px 32px 0 32px;
+    background: var(--bg-dark);
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 16px;
 }
@@ -147,7 +153,7 @@ body {
 .content-area { padding: 24px 32px; flex: 1; }
 
 /* =================================================================
-   CARDS & PANELS — TradingView Style
+   CARDS & PANELS — TradingView Light Style
    ================================================================= */
 .glass-card, .chart-section, .kpi-card, .usd-idr-panel,
 .compare-controls, .chart-panel, .ranking-panel, .radar-panel,
@@ -158,13 +164,14 @@ body {
     border: 1px solid var(--border-color);
     border-radius: 8px;
     color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
     transition: all 0.15s ease;
 }
 
 .glass-card:hover, .chart-section:hover, .kpi-card:hover,
 .dataset-card:hover, .scenario-card:hover {
     border-color: var(--border-hover);
-    background: var(--bg-elevated);
+    box-shadow: var(--shadow-md);
 }
 
 /* =================================================================
@@ -212,7 +219,7 @@ body {
 
 .btn-primary {
     background: var(--accent-primary); color: #fff;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    box-shadow: 0 1px 3px rgba(41, 98, 255, 0.3);
 }
 .btn-primary:hover {
     background: var(--accent-primary-hover);
@@ -247,7 +254,7 @@ body {
    FORMS
    ================================================================= */
 input[type="text"], input[type="number"], select, textarea {
-    background: var(--bg-elevated);
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
     border-radius: 6px;
@@ -270,7 +277,7 @@ th, td {
     border-bottom: 1px solid var(--border-color);
     font-size: 13px;
 }
-th { font-weight: 600; color: var(--text-secondary); text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+th { font-weight: 600; color: var(--text-secondary); text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; background: var(--bg-panel); }
 tr:hover { background: var(--bg-hover); }
 
 /* =================================================================
@@ -278,7 +285,7 @@ tr:hover { background: var(--bg-hover); }
    ================================================================= */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--bg-panel); }
-::-webkit-scrollbar-thumb { background: var(--bg-elevated); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
 
 /* =================================================================
@@ -288,10 +295,6 @@ tr:hover { background: var(--bg-hover); }
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slideInLeft { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes countUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes borderGlow {
-    0%, 100% { box-shadow: 0 0 0 1px var(--border-color); }
-    50% { box-shadow: 0 0 0 1px var(--accent-primary), 0 0 16px var(--accent-primary-glow); }
-}
 
 .fade-in { animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 

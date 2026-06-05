@@ -13,24 +13,27 @@
         min-height: 500px; 
         border-radius: 16px; 
         overflow: hidden;
-        border: 1px solid var(--border-color, #1E293B);
+        border: 1px solid var(--border-color, #E0E3EB);
+        background: var(--bg-card, #FFFFFF);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
     }
     .map-controls {
         display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;
     }
     .metric-select {
         padding: 10px 16px; border-radius: 10px;
-        background: var(--bg-card, #1E293B); border: 1px solid var(--border-color, #1E293B);
-        color: var(--text-primary, #F1F5F9); font-size: 14px; font-family: 'Inter', sans-serif;
+        background: var(--bg-card, #FFFFFF); border: 1px solid var(--border-color, #E0E3EB);
+        color: var(--text-primary, #131722); font-size: 14px; font-family: 'Inter', sans-serif;
         cursor: pointer;
     }
-    .metric-select:focus { border-color: var(--accent-primary, #0EA5E9); outline: none; }
+    .metric-select:focus { border-color: var(--accent-primary, #2962FF); outline: none; box-shadow: 0 0 0 3px rgba(41, 98, 255, 0.1); }
     .map-legend {
-        background: var(--bg-panel, #111827); padding: 12px 16px; border-radius: 10px;
-        border: 1px solid var(--border-color, #1E293B); font-size: 12px; color: var(--text-secondary, #94A3B8);
+        background: var(--bg-card, #FFFFFF); padding: 12px 16px; border-radius: 10px;
+        border: 1px solid var(--border-color, #E0E3EB); font-size: 12px; color: var(--text-secondary, #5D606B);
         min-width: 280px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     }
-    .legend-title { font-weight: 600; margin-bottom: 8px; color: var(--text-primary, #F1F5F9); display: flex; align-items: center; gap: 6px; }
+    .legend-title { font-weight: 600; margin-bottom: 8px; color: var(--text-primary, #131722); display: flex; align-items: center; gap: 6px; }
     .legend-title i { color: #F97316; }
     .legend-scale { 
         display: flex; 
@@ -44,30 +47,30 @@
     .legend-labels { display: flex; justify-content: space-between; font-size: 11px; }
     
     .leaflet-popup-content-wrapper {
-        background: var(--bg-panel, #111827) !important;
-        border: 1px solid var(--border-color, #1E293B) !important;
+        background: var(--bg-card, #FFFFFF) !important;
+        border: 1px solid var(--border-color, #E0E3EB) !important;
         border-radius: 12px !important;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06) !important;
     }
-    .leaflet-popup-content { color: var(--text-primary, #F1F5F9) !important; margin: 12px 16px !important; }
-    .leaflet-popup-tip { background: var(--bg-panel, #111827) !important; }
+    .leaflet-popup-content { color: var(--text-primary, #131722) !important; margin: 12px 16px !important; }
+    .leaflet-popup-tip { background: var(--bg-card, #FFFFFF) !important; box-shadow: 0 4px 8px rgba(0,0,0,0.06) !important; }
     
-    .popup-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
-    .popup-value { font-size: 24px; font-weight: 800; color: var(--accent-primary, #0EA5E9); }
-    .popup-metric { font-size: 12px; color: var(--text-secondary, #94A3B8); margin-top: 4px; }
-    .popup-rank { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 4px; background: rgba(239, 68, 68, 0.15); color: #FCA5A5; font-size: 11px; font-weight: 600; }
+    .popup-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary, #131722); }
+    .popup-value { font-size: 24px; font-weight: 800; color: var(--accent-primary, #2962FF); }
+    .popup-metric { font-size: 12px; color: var(--text-secondary, #5D606B); margin-top: 4px; }
+    .popup-rank { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 4px; background: rgba(239, 83, 80, 0.1); color: #EF5350; font-size: 11px; font-weight: 600; }
 
     .custom-tooltip {
-        background: var(--bg-panel, #111827) !important;
-        border: 1px solid var(--border-color, #1E293B) !important;
-        color: var(--text-primary, #F1F5F9) !important;
+        background: var(--bg-card, #FFFFFF) !important;
+        border: 1px solid var(--border-color, #E0E3EB) !important;
+        color: var(--text-primary, #131722) !important;
         border-radius: 8px !important;
         padding: 6px 10px !important;
         font-size: 13px !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
     }
     .custom-tooltip::before {
-        border-top-color: var(--border-color, #1E293B) !important;
+        border-top-color: var(--border-color, #E0E3EB) !important;
     }
 
     .leaflet-heatmap-layer { pointer-events: none; }
@@ -89,7 +92,7 @@
     <div id="mapLegend" class="map-legend">
         <div class="legend-title">Loading...</div>
     </div>
-    <span style="color: var(--text-secondary, #94A3B8); font-size: 13px; margin-left: auto;">
+    <span style="color: var(--text-secondary, #5D606B); font-size: 13px; margin-left: auto;">
         <i class="fas fa-info-circle"></i> Klik provinsi untuk detail. Gunakan scroll untuk zoom.
     </span>
 </div>
@@ -172,7 +175,7 @@ map = L.map('map', {
     attributionControl: true
 });
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
     subdomains: 'abcd',
     maxZoom: 19
@@ -266,9 +269,9 @@ function updateMap() {
         const marker = L.circleMarker(coords, {
             radius: 5,
             fillColor: 'transparent',
-            color: '#ffffff',
+            color: '#131722',
             weight: 1.5,
-            opacity: 0.9,
+            opacity: 0.7,
             fillOpacity: 0
         }).addTo(map);
         

@@ -5,558 +5,396 @@
 
 {% block extra_head %}
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<style>
+    :root {
+        --bg-dark: #FFFFFF;
+        --bg-panel: #F8F9FB;
+        --bg-card: #FFFFFF;
+        --bg-elevated: #F1F3F6;
+        --accent-primary: #2962FF;
+        --accent-primary-dim: rgba(41, 98, 255, 0.1);
+        --accent-secondary: #26A69A;
+        --accent-tertiary: #AB47BC;
+        --accent-info: #00BCD4;
+        --positive: #26A69A;
+        --negative: #EF5350;
+        --text-primary: #131722;
+        --text-secondary: #5D606B;
+        --text-tertiary: #868993;
+        --border-color: #E0E3EB;
+        --border-hover: #CFD3DC;
+    }
+
+    /* ===== GRID BG ===== */
+    .grid-bg {
+        background-image:
+            linear-gradient(rgba(41,98,233,0.04) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(41,98,233,0.04) 1px, transparent 1px);
+        background-size: 40px 40px;
+    }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes livePulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
+    @keyframes borderAnim { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+    @keyframes countUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes tickerScroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+
+    .ticker-strip {
+        display: flex; overflow: hidden; white-space: nowrap;
+        background: var(--bg-elevated); border: 1px solid var(--border-color);
+        border-radius: 6px; padding: 8px 0; margin-bottom: 20px;
+    }
+    .ticker-strip-content { display: inline-block; animation: tickerScroll 35s linear infinite; }
+    .ticker-strip-content span { display: inline-block; padding: 0 24px; font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+    .ticker-strip-content .up { color: var(--positive); }
+    .ticker-strip-content .down { color: var(--negative); }
+    .ticker-strip-content strong { color: var(--text-primary); font-weight: 700; }
+
+    /* ===== WELCOME ===== */
+    .welcome-terminal {
+        position: relative; overflow: hidden;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 28px 32px; margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .welcome-terminal::before {
+        content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary), var(--accent-tertiary));
+        background-size: 200% 100%; animation: borderAnim 3s ease infinite;
+    }
+    .welcome-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+    .welcome-title { display: flex; align-items: center; gap: 12px; }
+    .welcome-title h1 { font-size: 22px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px; }
+    .welcome-title .icon {
+        width: 40px; height: 40px; border-radius: 8px;
+        background: var(--accent-primary-dim); border: 1px solid rgba(41, 98, 255, 0.2);
+        display: flex; align-items: center; justify-content: center;
+        color: var(--accent-primary); font-size: 18px;
+    }
+    .welcome-subtitle { color: var(--text-secondary); font-size: 13px; margin-top: 4px; }
+    .status-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+    .status-badge {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 10px; border-radius: 4px;
+        font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+        background: var(--bg-elevated); border: 1px solid var(--border-color); color: var(--text-secondary);
+    }
+    .status-badge.live { color: var(--positive); border-color: rgba(38, 166, 154, 0.3); background: rgba(38, 166, 154, 0.08); }
+    .status-badge.online { color: var(--accent-primary); border-color: rgba(41, 98, 255, 0.3); background: var(--accent-primary-dim); }
+    .status-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: livePulse 1.5s infinite; }
+
+    /* ===== KPI GRID ===== */
+    .terminal-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+    .terminal-kpi {
+        background: var(--bg-card); border: 1px solid var(--border-color);
+        border-radius: 8px; padding: 16px; position: relative; overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        transition: all 0.15s;
+    }
+    .terminal-kpi:hover { border-color: var(--border-hover); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+    .terminal-kpi::before {
+        content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg, var(--accent-primary), transparent); opacity: 0.5;
+    }
+    .terminal-kpi .kpi-icon-wrap {
+        width: 32px; height: 32px; border-radius: 6px; display: flex;
+        align-items: center; justify-content: center; font-size: 14px; margin-bottom: 12px;
+    }
+    .terminal-kpi .kpi-label {
+        font-size: 10px; font-weight: 600; color: var(--text-secondary);
+        text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+    }
+    .terminal-kpi .kpi-number {
+        font-size: 24px; font-weight: 800; letter-spacing: -0.5px;
+        color: var(--text-primary); margin-bottom: 4px; font-variant-numeric: tabular-nums;
+    }
+    .terminal-kpi .kpi-sub { font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; }
+    .terminal-kpi .kpi-sparkline { height: 32px; width: 100%; }
+    .terminal-kpi .kpi-sparkline canvas { width: 100% !important; height: 100% !important; }
+    .terminal-kpi .kpi-badge {
+        font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 3px; display: inline-flex; align-items: center; gap: 3px;
+    }
+    .badge-up { background: rgba(38, 166, 154, 0.1); color: var(--positive); }
+    .badge-down { background: rgba(239, 83, 80, 0.1); color: var(--negative); }
+    .badge-neutral { background: var(--accent-primary-dim); color: var(--accent-primary); }
+
+    /* ===== CHARTS ===== */
+    .charts-row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .chart-panel {
+        background: var(--bg-card); border: 1px solid var(--border-color);
+        border-radius: 8px; padding: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .chart-panel h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: var(--text-primary); }
+    .chart-box { height: 220px; position: relative; }
+
+    /* ===== USD/IDR ===== */
+    .usd-idr-panel {
+        background: var(--bg-card); border: 1px solid var(--border-color);
+        border-radius: 8px; padding: 20px; margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .usd-idr-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+    .usd-idr-title { display: flex; align-items: center; gap: 10px; }
+    .usd-idr-title .icon {
+        width: 36px; height: 36px; border-radius: 6px;
+        background: var(--accent-primary-dim); border: 1px solid rgba(41, 98, 255, 0.2);
+        display: flex; align-items: center; justify-content: center; color: var(--accent-primary); font-size: 14px;
+    }
+    .usd-idr-title h3 { font-size: 14px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; }
+    .usd-idr-title p { color: var(--text-secondary); font-size: 11px; margin-top: 2px; }
+    .usd-idr-status { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .usd-idr-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-primary); animation: livePulse 1.5s infinite; }
+    .usd-idr-body { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+    .usd-idr-value { font-size: 32px; font-weight: 800; color: var(--text-primary); letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+    .usd-idr-change { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; margin-top: 4px; display: inline-block; }
+    .usd-idr-sparkline { height: 50px; flex: 1; min-width: 200px; }
+    .usd-idr-sparkline canvas { width: 100% !important; height: 100% !important; }
+    .usd-idr-meta { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color); font-size: 11px; color: var(--text-secondary); }
+
+    /* ===== PURCHASING POWER ===== */
+    .purchasing-power-section {
+        background: var(--bg-card); border: 1px solid var(--border-color);
+        border-radius: 8px; padding: 28px; margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .pp-input-area { display: flex; align-items: center; gap: 12px; margin: 20px 0 24px 0; flex-wrap: wrap; }
+    .pp-input-area label { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+    .pp-input-area input {
+        background: var(--bg-card); border: 1px solid var(--border-color);
+        border-radius: 6px; padding: 10px 14px;
+        color: var(--text-primary); font-size: 14px; font-weight: 600;
+        font-family: inherit; width: 200px; outline: none; transition: border-color 0.15s;
+    }
+    .pp-input-area input:focus { border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-primary-dim); }
+    .pp-input-area button {
+        background: var(--accent-primary); color: #fff; border: none;
+        border-radius: 6px; padding: 10px 20px; font-size: 13px; font-weight: 700;
+        cursor: pointer; font-family: inherit; transition: all 0.15s;
+        display: inline-flex; align-items: center; gap: 6px;
+    }
+    .pp-input-area button:hover { background: var(--accent-primary-hover); }
+    .pp-result { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 28px; flex-wrap: wrap; }
+    .pp-result-col { text-align: center; min-width: 160px; }
+    .pp-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; margin-bottom: 6px; }
+    .pp-value { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
+    .pp-value.positive { color: var(--positive); }
+    .pp-value.negative { color: var(--negative); }
+    .pp-arrow { font-size: 24px; color: var(--text-tertiary); }
+    .pp-bars { margin-bottom: 24px; display: flex; flex-direction: column; gap: 10px; }
+    .pp-bar-row { display: flex; align-items: center; gap: 10px; }
+    .pp-bar-row .label { font-size: 11px; color: var(--text-secondary); font-weight: 600; width: 70px; }
+    .pp-bar-track { flex: 1; height: 16px; background: var(--bg-elevated); border-radius: 4px; overflow: hidden; }
+    .pp-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+    .pp-bar-fill.pos { background: linear-gradient(90deg, var(--positive), rgba(38, 166, 154, 0.6)); }
+    .pp-bar-fill.neg { background: linear-gradient(90deg, var(--negative), rgba(239, 83, 80, 0.6)); }
+    .pp-commodities { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+    .pp-commodity-card {
+        background: var(--bg-elevated); border: 1px solid var(--border-color);
+        border-radius: 6px; padding: 14px;
+        transition: all 0.15s;
+    }
+    .pp-commodity-card:hover { border-color: var(--accent-primary); }
+    .pp-commodity-name { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+    .pp-commodity-qty { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .pp-qty-before { font-size: 14px; font-weight: 700; color: var(--positive); }
+    .pp-qty-after { font-size: 14px; font-weight: 700; }
+    .pp-qty-after.loss { color: var(--negative); }
+    .pp-qty-arrow { color: var(--text-tertiary); }
+    .pp-qty-loss { font-size: 11px; color: var(--negative); font-weight: 600; margin-top: 4px; }
+    .pp-qty-price { font-size: 11px; color: var(--text-secondary); }
+
+    .section-title {
+        font-size: 13px; font-weight: 700; color: var(--text-primary);
+        text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .section-title i { color: var(--accent-primary); }
+
+    .responsive-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    @media (max-width: 900px) {
+        .terminal-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        .charts-row, .responsive-row { grid-template-columns: 1fr; }
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-<style>
-    /* ===== ANIMATIONS ===== */
-    @keyframes livePulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-    @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes tickerScroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+<!-- Ticker Strip -->
+<div class="ticker-strip">
+    <div class="ticker-strip-content">
+        <span>USD/IDR <strong>18,037</strong> <span class="up">▲ 0.59%</span></span>
+        <span>Inflasi MoM <strong>0.28%</strong> <span class="up">▲ 0.03%</span></span>
+        <span>R² Model <strong>90.8%</strong></span>
+        <span>Baseline <strong>Rp 1.45jt</strong></span>
+        <span>SDGs 8 <strong>Active</strong></span>
+        <span>LSTM <strong>Active</strong></span>
+        <span>ARIMA <strong>Active</strong></span>
+        <span>38 Provinsi <strong>Tercakup</strong></span>
+        <span>23 Dataset <strong>Tersedia</strong></span>
+        <span>USD/IDR <strong>18,037</strong> <span class="up">▲ 0.59%</span></span>
+        <span>Inflasi MoM <strong>0.28%</strong> <span class="up">▲ 0.03%</span></span>
+        <span>R² Model <strong>90.8%</strong></span>
+        <span>Baseline <strong>Rp 1.45jt</strong></span>
+        <span>SDGs 8 <strong>Active</strong></span>
+        <span>LSTM <strong>Active</strong></span>
+        <span>ARIMA <strong>Active</strong></span>
+        <span>38 Provinsi <strong>Tercakup</strong></span>
+        <span>23 Dataset <strong>Tersedia</strong></span>
+    </div>
+</div>
 
-    .tv-fade { animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+<!-- Welcome Terminal -->
+<section class="welcome-terminal">
+    <div class="welcome-row">
+        <div class="welcome-title">
+            <div class="icon"><i class="fas fa-terminal"></i></div>
+            <div>
+                <h1>Command Center</h1>
+                <p class="welcome-subtitle">Dashboard analisis inflasi & daya beli — Update terakhir: hari ini</p>
+            </div>
+        </div>
+        <div class="status-badges">
+            <span class="status-badge live"><span class="dot"></span> Live</span>
+            <span class="status-badge online"><span class="dot"></span> System Online</span>
+            <span class="status-badge"><span class="dot"></span> LSTM Active</span>
+        </div>
+    </div>
+</section>
 
-    /* ===== COMMAND CENTER HEADER ===== */
-    .tv-header {
-        display: flex; align-items: center; justify-content: space-between;
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 18px 24px; margin-bottom: 16px;
-        gap: 16px; flex-wrap: wrap;
-    }
-    .tv-header-left { display: flex; align-items: center; gap: 16px; min-width: 0; }
-    .tv-header-icon {
-        width: 40px; height: 40px; border-radius: 8px;
-        background: var(--accent-primary-dim);
-        border: 1px solid var(--accent-primary);
-        display: flex; align-items: center; justify-content: center;
-        color: var(--accent-primary); font-size: 16px; flex-shrink: 0;
-    }
-    .tv-title-block { min-width: 0; }
-    .tv-title {
-        font-size: 18px; font-weight: 700; color: var(--text-primary);
-        letter-spacing: -0.3px; line-height: 1.2;
-    }
-    .tv-subtitle {
-        font-size: 12px; color: var(--text-secondary); margin-top: 2px;
-        display: flex; align-items: center; gap: 8px;
-    }
-    .tv-status-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .tv-status {
-        display: inline-flex; align-items: center; gap: 6px;
-        padding: 5px 10px; border-radius: 4px;
-        font-size: 10px; font-weight: 700;
-        text-transform: uppercase; letter-spacing: 0.8px;
-        border: 1px solid var(--border-color);
-        background: var(--bg-elevated);
-    }
-    .tv-status.live { color: var(--positive); border-color: var(--positive); background: var(--positive-dim); }
-    .tv-status.online { color: var(--accent-primary); border-color: var(--accent-primary); background: var(--accent-primary-dim); }
-    .tv-status.active { color: var(--accent-info); border-color: var(--accent-info); background: rgba(0,188,212,0.12); }
-    .tv-status .dot {
-        width: 6px; height: 6px; border-radius: 50%; background: currentColor;
-        animation: livePulse 1.5s ease-in-out infinite;
-    }
+<div class="section-title"><i class="fas fa-chart-line"></i> Key Performance Indicators</div>
 
-    /* ===== TICKER STRIP ===== */
-    .tv-ticker {
-        background: var(--bg-panel);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 8px 0; margin-bottom: 16px;
-        overflow: hidden; position: relative;
-    }
-    .tv-ticker-inner {
-        display: flex; gap: 32px;
-        animation: tickerScroll 40s linear infinite;
-        white-space: nowrap;
-    }
-    .tv-ticker-item {
-        display: inline-flex; align-items: center; gap: 8px;
-        font-size: 12px; color: var(--text-secondary);
-    }
-    .tv-ticker-item .ticker-name { color: var(--text-primary); font-weight: 600; }
-    .tv-ticker-item .ticker-val { font-variant-numeric: tabular-nums; }
-    .tv-ticker-item .up { color: var(--positive); }
-    .tv-ticker-item .down { color: var(--negative); }
-
-    /* ===== KPI CARDS — TradingView style ===== */
-    .tv-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-    .tv-kpi {
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 16px 18px;
-        position: relative; overflow: hidden;
-        transition: all 0.15s ease;
-    }
-    .tv-kpi:hover {
-        border-color: var(--border-hover);
-        background: var(--bg-elevated);
-    }
-    .tv-kpi-label {
-        font-size: 11px; font-weight: 600; color: var(--text-secondary);
-        text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
-        display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    }
-    .tv-kpi-label i { color: var(--text-tertiary); font-size: 11px; }
-    .tv-kpi-value {
-        font-size: 24px; font-weight: 800; letter-spacing: -0.5px;
-        color: var(--text-primary); margin-bottom: 6px;
-        font-variant-numeric: tabular-nums; line-height: 1.1;
-    }
-    .tv-kpi-meta {
-        display: flex; align-items: center; justify-content: space-between; gap: 8px;
-        margin-top: 8px;
-    }
-    .tv-kpi-spark { width: 80px; height: 28px; }
-    .tv-kpi-spark canvas { width: 100% !important; height: 100% !important; display: block; }
-    .tv-trend {
-        display: inline-flex; align-items: center; gap: 3px;
-        font-size: 11px; font-weight: 600; padding: 2px 6px;
-        border-radius: 4px;
-    }
-    .tv-trend.positive { color: var(--positive); background: var(--positive-dim); }
-    .tv-trend.negative { color: var(--negative); background: var(--negative-dim); }
-    .tv-trend.neutral { color: var(--accent-primary); background: var(--accent-primary-dim); }
-    .tv-trend svg { width: 10px; height: 10px; }
-    .tv-kpi-foot { font-size: 10px; color: var(--text-tertiary); margin-top: 4px; }
-
-    /* ===== SECTION TITLE ===== */
-    .tv-section-title {
-        display: flex; align-items: center; justify-content: space-between;
-        margin: 8px 0 12px 0;
-    }
-    .tv-section-title h3 {
-        font-size: 13px; font-weight: 600; color: var(--text-primary);
-        text-transform: uppercase; letter-spacing: 0.8px;
-        display: flex; align-items: center; gap: 8px;
-    }
-    .tv-section-title h3 i { color: var(--accent-primary); font-size: 12px; }
-    .tv-section-title .meta { font-size: 11px; color: var(--text-secondary); }
-
-    /* ===== CHART PANEL ===== */
-    .tv-panel {
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 18px 20px;
-        transition: border-color 0.15s ease;
-    }
-    .tv-panel:hover { border-color: var(--border-hover); }
-    .tv-panel-head {
-        display: flex; align-items: center; justify-content: space-between;
-        margin-bottom: 12px; gap: 10px;
-    }
-    .tv-panel-title {
-        font-size: 14px; font-weight: 600; color: var(--text-primary);
-        display: flex; align-items: center; gap: 8px;
-    }
-    .tv-panel-title i { color: var(--accent-primary); font-size: 13px; }
-    .tv-panel-sub { font-size: 11px; color: var(--text-secondary); }
-    .tv-tag {
-        display: inline-flex; align-items: center; gap: 4px;
-        font-size: 10px; font-weight: 600;
-        padding: 3px 8px; border-radius: 3px;
-        background: var(--accent-primary-dim);
-        color: var(--accent-primary);
-        text-transform: uppercase; letter-spacing: 0.5px;
-        border: 1px solid var(--accent-primary);
-    }
-
-    /* ===== TWO-COL GRID ===== */
-    .tv-grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 16px; }
-
-    /* ===== USD/IDR PANEL ===== */
-    .tv-usd-panel {
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 20px 24px;
-        transition: border-color 0.15s ease;
-    }
-    .tv-usd-panel:hover { border-color: var(--border-hover); }
-    .tv-usd-head {
-        display: flex; align-items: center; justify-content: space-between;
-        margin-bottom: 14px; flex-wrap: wrap; gap: 12px;
-    }
-    .tv-usd-id-block { display: flex; align-items: center; gap: 12px; }
-    .tv-usd-icon {
-        width: 36px; height: 36px; border-radius: 6px;
-        background: var(--accent-primary-dim);
-        border: 1px solid var(--accent-primary);
-        display: flex; align-items: center; justify-content: center;
-        color: var(--accent-primary); font-size: 14px;
-    }
-    .tv-usd-rate {
-        font-size: 36px; font-weight: 800; letter-spacing: -1px;
-        color: var(--text-primary); font-variant-numeric: tabular-nums;
-        line-height: 1.1;
-    }
-    .tv-usd-spark-block { flex: 1; min-width: 180px; }
-    .tv-usd-spark { height: 56px; width: 100%; }
-    .tv-usd-spark canvas { width: 100% !important; height: 100% !important; }
-    .tv-usd-meta {
-        font-size: 11px; color: var(--text-tertiary);
-        margin-top: 8px; display: flex; align-items: center; gap: 6px;
-        padding-top: 8px; border-top: 1px solid var(--border-color);
-    }
-
-    /* ===== PURCHASING POWER ===== */
-    .tv-pp-panel {
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 20px 24px;
-        margin-bottom: 16px;
-        transition: border-color 0.15s ease;
-    }
-    .tv-pp-panel:hover { border-color: var(--border-hover); }
-    .tv-pp-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
-    .tv-pp-icon {
-        width: 36px; height: 36px; border-radius: 6px;
-        background: var(--positive-dim);
-        border: 1px solid var(--positive);
-        display: flex; align-items: center; justify-content: center;
-        color: var(--positive); font-size: 14px;
-    }
-    .tv-pp-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
-    .tv-pp-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
-
-    .tv-pp-input-row {
-        display: flex; align-items: center; gap: 12px; margin: 16px 0;
-        flex-wrap: wrap;
-    }
-    .tv-pp-input {
-        background: var(--bg-elevated);
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        padding: 8px 12px;
-        color: var(--text-primary); font-size: 14px; font-weight: 600;
-        font-family: inherit; width: 220px; outline: none;
-        transition: all 0.15s ease;
-    }
-    .tv-pp-input:focus {
-        border-color: var(--accent-primary);
-        box-shadow: 0 0 0 3px var(--accent-primary-dim);
-    }
-    .tv-pp-btn {
-        background: var(--accent-primary); color: #fff; border: none;
-        border-radius: 6px; padding: 8px 16px;
-        font-size: 13px; font-weight: 600; cursor: pointer;
-        font-family: inherit; transition: all 0.15s ease;
-        display: inline-flex; align-items: center; gap: 6px;
-    }
-    .tv-pp-btn:hover {
-        background: var(--accent-primary-hover);
-        box-shadow: 0 2px 8px var(--accent-primary-glow);
-    }
-
-    .tv-pp-result {
-        display: flex; align-items: center; justify-content: center; gap: 28px;
-        margin-bottom: 18px; flex-wrap: wrap;
-        padding: 14px 0;
-        background: var(--bg-elevated);
-        border-radius: 6px;
-    }
-    .tv-pp-result-box { text-align: center; min-width: 160px; }
-    .tv-pp-result-label {
-        font-size: 10px; color: var(--text-secondary);
-        text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
-        margin-bottom: 6px;
-    }
-    .tv-pp-result-value { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
-    .tv-pp-arrow { font-size: 18px; color: var(--text-tertiary); }
-
-    .tv-pp-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-    .tv-pp-bar-label { font-size: 11px; font-weight: 600; width: 70px; }
-    .tv-pp-bar-track {
-        flex: 1; height: 8px; background: var(--bg-elevated);
-        border-radius: 4px; overflow: hidden;
-    }
-    .tv-pp-bar-fill {
-        height: 100%; border-radius: 4px;
-        transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .tv-pp-commodity-grid {
-        display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 10px; margin-top: 14px;
-    }
-    .tv-pp-commodity {
-        background: var(--bg-elevated);
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        padding: 12px 14px;
-        transition: all 0.15s ease;
-    }
-    .tv-pp-commodity:hover {
-        border-color: var(--border-hover);
-        background: var(--bg-hover);
-    }
-    .tv-pp-commodity-name {
-        font-size: 12px; font-weight: 600; color: var(--text-primary);
-        margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
-    }
-    .tv-pp-commodity-name i { color: var(--accent-primary); font-size: 10px; }
-    .tv-pp-qty {
-        font-size: 14px; font-weight: 700; margin-bottom: 4px;
-    }
-    .tv-pp-qty .arrow { color: var(--text-tertiary); margin: 0 4px; font-size: 10px; }
-    .tv-pp-price { font-size: 10px; color: var(--text-tertiary); }
-    .tv-pp-loss { font-size: 10px; font-weight: 600; margin-top: 4px; color: var(--negative); }
-
-    /* ===== RESPONSIVE ===== */
-    @media (max-width: 1024px) {
-        .tv-kpi-grid { grid-template-columns: repeat(2, 1fr); }
-        .tv-grid-2 { grid-template-columns: 1fr; }
-    }
-    @media (max-width: 640px) {
-        .tv-kpi-grid { grid-template-columns: 1fr; }
-        .tv-usd-rate { font-size: 28px; }
-        .content-area { padding: 16px !important; }
-    }
-</style>
-
-<!-- ============================================ -->
-<!-- 1. COMMAND CENTER HEADER                      -->
-<!-- ============================================ -->
-<div class="tv-header tv-fade">
-    <div class="tv-header-left">
-        <div class="tv-header-icon">
+<!-- KPI Grid -->
+<section class="terminal-kpi-grid">
+    <div class="terminal-kpi" id="kpi-inflasi">
+        <div class="kpi-icon-wrap" style="background: var(--accent-primary-dim); color: var(--accent-primary);">
             <i class="fas fa-chart-line"></i>
         </div>
-        <div class="tv-title-block">
-            <div class="tv-title">Command Center</div>
-            <div class="tv-subtitle">
-                <i class="fas fa-globe-asia" style="color: var(--accent-primary); font-size: 10px;"></i>
-                Indonesian Macroeconomic Intelligence · EcoDash
-            </div>
-        </div>
+        <div class="kpi-label">Proyeksi Inflasi (LSTM)</div>
+        <div class="kpi-number" style="color: var(--accent-primary);">{{ inflasi_pred|floatformat:2 }}%</div>
+        <div class="kpi-sub">Bulan depan</div>
+        <div class="kpi-sparkline"><canvas id="spark-inflasi"></canvas></div>
+        <span class="kpi-badge badge-up" style="margin-top: 4px;"><i class="fas fa-arrow-up" style="font-size: 8px;"></i> PyTorch Forecast</span>
     </div>
-    <div class="tv-status-group">
-        <div class="tv-status live"><span class="dot"></span>Live</div>
-        <div class="tv-status online"><span class="dot"></span>Online</div>
-        <div class="tv-status active"><span class="dot"></span>Active</div>
+    <div class="terminal-kpi" id="kpi-r2">
+        <div class="kpi-icon-wrap" style="background: rgba(38, 166, 154, 0.1); color: var(--positive);">
+            <i class="fas fa-bullseye"></i>
+        </div>
+        <div class="kpi-label">Akurasi Model R²</div>
+        <div class="kpi-number" style="color: var(--positive);">90.8%</div>
+        <div class="kpi-sub">Test set accuracy</div>
+        <div class="kpi-sparkline"><canvas id="spark-r2"></canvas></div>
+        <span class="kpi-badge badge-up" style="margin-top: 4px;"><i class="fas fa-check-circle" style="font-size: 8px;"></i> Sangat Andal</span>
     </div>
-</div>
-
-<!-- Ticker Strip -->
-<div class="tv-ticker">
-    <div class="tv-ticker-inner">
-        <div class="tv-ticker-item"><span class="ticker-name">USD/IDR</span> <span class="ticker-val" id="tick-usd">—</span> <span class="up" id="tick-usd-chg">—</span></div>
-        <div class="tv-ticker-item"><span class="ticker-name">INFLASI FORECAST</span> <span class="ticker-val">{{ inflasi_pred|floatformat:2 }}%</span> <span class="up">▲ LSTM</span></div>
-        <div class="tv-ticker-item"><span class="ticker-name">R² MODEL</span> <span class="ticker-val">98.5%</span> <span class="up">▲ ANDAL</span></div>
-        <div class="tv-ticker-item"><span class="ticker-name">BASELINE</span> <span class="ticker-val">Rp {{ rata_pengeluaran }}</span> <span class="up">▲ SDGs 8</span></div>
-        <div class="tv-ticker-item"><span class="ticker-name">SDGS 8</span> <span class="ticker-val">DECENT WORK</span> <span class="up">▲ TRACKED</span></div>
-        <div class="tv-ticker-item"><span class="ticker-name">PYTORCH LSTM</span> <span class="ticker-val">RUNNING</span> <span class="up">▲ ACTIVE</span></div>
-        <div class="tv-ticker-item"><span class="ticker-name">USD/IDR</span> <span class="ticker-val" id="tick-usd2">—</span> <span class="up" id="tick-usd-chg2">—</span></div>
-        <div class="tv-ticker-item"><span class="ticker-name">INFLASI FORECAST</span> <span class="ticker-val">{{ inflasi_pred|floatformat:2 }}%</span> <span class="up">▲ LSTM</span></div>
-        <div class="tv-ticker-item"><span class="ticker-name">R² MODEL</span> <span class="ticker-val">98.5%</span> <span class="up">▲ ANDAL</span></div>
-        <div class="tv-ticker-item"><span class="ticker-name">BASELINE</span> <span class="ticker-val">Rp {{ rata_pengeluaran }}</span> <span class="up">▲ SDGs 8</span></div>
-        <div class="tv-ticker-item"><span class="ticker-name">SDGS 8</span> <span class="ticker-val">DECENT WORK</span> <span class="up">▲ TRACKED</span></div>
-        <div class="tv-ticker-item"><span class="ticker-name">PYTORCH LSTM</span> <span class="ticker-val">RUNNING</span> <span class="up">▲ ACTIVE</span></div>
+    <div class="terminal-kpi" id="kpi-baseline">
+        <div class="kpi-icon-wrap" style="background: rgba(171, 71, 188, 0.1); color: var(--accent-tertiary);">
+            <i class="fas fa-wallet"></i>
+        </div>
+        <div class="kpi-label">Baseline Pengeluaran</div>
+        <div class="kpi-number">Rp {{ rata_pengeluaran }}</div>
+        <div class="kpi-sub">Per kapita / bulan</div>
+        <div class="kpi-sparkline"><canvas id="spark-baseline"></canvas></div>
+        <span class="kpi-badge badge-up" style="margin-top: 4px;"><i class="fas fa-arrow-up" style="font-size: 8px;"></i> SDGs 8</span>
     </div>
-</div>
-
-<!-- ============================================ -->
-<!-- 2. KPI CARDS — TRADINGVIEW STYLE              -->
-<!-- ============================================ -->
-<div class="tv-section-title">
-    <h3><i class="fas fa-bolt"></i>Key Performance Indicators</h3>
-    <span class="meta"><i class="fas fa-clock" style="font-size: 10px;"></i> Update Terakhir: Hari ini</span>
-</div>
-
-<section class="tv-kpi-grid">
-    <!-- KPI 1: Inflasi Prediksi -->
-    <div class="tv-kpi tv-fade">
-        <div class="tv-kpi-label">
-            <span><i class="fas fa-brain"></i>&nbsp; Inflasi Forecast</span>
-            <span class="tv-trend neutral">LSTM</span>
+    <div class="terminal-kpi" id="kpi-usd-idr">
+        <div class="kpi-icon-wrap" style="background: rgba(239, 83, 80, 0.1); color: var(--negative);">
+            <i class="fas fa-dollar-sign"></i>
         </div>
-        <div class="tv-kpi-value" style="color: var(--accent-primary);">{{ inflasi_pred|floatformat:2 }}%</div>
-        <div class="tv-kpi-meta">
-            <span class="tv-trend positive">▲ Proyeksi</span>
-            <div class="tv-kpi-spark"><canvas id="spark-inflasi"></canvas></div>
-        </div>
-        <div class="tv-kpi-foot">PyTorch LSTM · Next Month</div>
-    </div>
-
-    <!-- KPI 2: R² Model -->
-    <div class="tv-kpi tv-fade">
-        <div class="tv-kpi-label">
-            <span><i class="fas fa-bullseye"></i>&nbsp; R² Model Akurasi</span>
-            <span class="tv-trend positive">▲ Andal</span>
-        </div>
-        <div class="tv-kpi-value" style="color: var(--positive);">98.5%</div>
-        <div class="tv-kpi-meta">
-            <span class="tv-trend positive">▲ Stabil</span>
-            <div class="tv-kpi-spark"><canvas id="spark-r2"></canvas></div>
-        </div>
-        <div class="tv-kpi-foot">Ridge Regression · Cross-val</div>
-    </div>
-
-    <!-- KPI 3: Baseline Pengeluaran -->
-    <div class="tv-kpi tv-fade">
-        <div class="tv-kpi-label">
-            <span><i class="fas fa-wallet"></i>&nbsp; Baseline Pengeluaran</span>
-            <span class="tv-trend neutral">SDGs 8</span>
-        </div>
-        <div class="tv-kpi-value" style="color: var(--text-primary);">Rp {{ rata_pengeluaran }}</div>
-        <div class="tv-kpi-meta">
-            <span class="tv-trend positive">▲ Target</span>
-            <div class="tv-kpi-spark"><canvas id="spark-pengeluaran"></canvas></div>
-        </div>
-        <div class="tv-kpi-foot">BPS · Per Kapita / Bulan</div>
-    </div>
-
-    <!-- KPI 4: USD/IDR Kurs (LIVE) -->
-    <div class="tv-kpi tv-fade" id="kpi-usd-idr">
-        <div class="tv-kpi-label">
-            <span><i class="fas fa-dollar-sign"></i>&nbsp; USD/IDR</span>
-            <span class="tv-trend neutral" id="kpi-usd-badge"><i class="fas fa-sync-alt"></i> Loading</span>
-        </div>
-        <div class="tv-kpi-value" id="kpi-usd-value" style="color: var(--accent-primary);">—</div>
-        <div class="tv-kpi-meta">
-            <span class="tv-trend positive" id="kpi-usd-sub">Memuat data...</span>
-            <div class="tv-kpi-spark"><canvas id="spark-usd"></canvas></div>
-        </div>
-        <div class="tv-kpi-foot" id="kpi-usd-foot">Real-time · API</div>
+        <div class="kpi-label">USD/IDR Kurs</div>
+        <div class="kpi-number" id="kpi-usd-value" style="color: var(--negative);">—</div>
+        <div class="kpi-sub" id="kpi-usd-sub">Memuat data real-time...</div>
+        <div class="kpi-sparkline"><canvas id="spark-usd"></canvas></div>
+        <span class="kpi-badge badge-down" id="kpi-usd-badge" style="margin-top: 4px;"><i class="fas fa-sync-alt" style="font-size: 8px; animation: pulse 1s infinite;"></i> Loading</span>
     </div>
 </section>
 
-<!-- ============================================ -->
-<!-- 3. CHARTS SECTION                             -->
-<!-- ============================================ -->
-<div class="tv-section-title">
-    <h3><i class="fas fa-chart-area"></i>Market Data</h3>
-    <span class="meta">BPS · Updated Real-time</span>
-</div>
-
-<div class="tv-grid-2">
-    <!-- UMP Trend Chart -->
-    <section class="tv-panel tv-fade">
-        <div class="tv-panel-head">
+<!-- USD/IDR Live Section -->
+<section class="usd-idr-panel">
+    <div class="usd-idr-header">
+        <div class="usd-idr-title">
+            <div class="icon"><i class="fas fa-exchange-alt"></i></div>
             <div>
-                <div class="tv-panel-title"><i class="fas fa-chart-bar"></i>UMP Trend · Historis</div>
-                <div class="tv-panel-sub">Rata-rata upah minimum provinsi</div>
+                <h3>USD/IDR Live Exchange Rate</h3>
+                <p>Real-time data dari open.er-api.com</p>
             </div>
-            <span class="tv-tag"><i class="fas fa-database" style="font-size: 8px;"></i> BPS</span>
         </div>
-        <div style="height: 260px; position: relative;">
-            <canvas id="overviewChart"></canvas>
+        <div class="usd-idr-status">
+            <span class="dot"></span>
+            <span id="usd-last-updated">Memuat...</span>
         </div>
-    </section>
-
-    <!-- Pie Chart -->
-    <section class="tv-panel tv-fade">
-        <div class="tv-panel-head">
-            <div>
-                <div class="tv-panel-title"><i class="fas fa-chart-pie"></i>Proporsi Pengeluaran</div>
-                <div class="tv-panel-sub">Makanan vs Non-Makanan</div>
-            </div>
-            <span class="tv-tag">DISTRIBUSI</span>
-        </div>
-        <div style="height: 260px; display: flex; align-items: center; justify-content: center; position: relative;">
-            <canvas id="pieChart"></canvas>
-        </div>
-    </section>
-</div>
-
-<!-- ============================================ -->
-<!-- 4. RUPIAH PURCHASING POWER                    -->
-<!-- ============================================ -->
-<section class="tv-pp-panel tv-fade">
-    <div class="tv-pp-head">
-        <div class="tv-pp-icon"><i class="fas fa-hand-holding-usd"></i></div>
+    </div>
+    <div class="usd-idr-body">
         <div>
-            <div class="tv-pp-title">Dampak Inflasi pada Daya Beli</div>
-            <div class="tv-pp-sub">Simulasi real-time dampak inflasi terhadap nominal Rupiah</div>
-        </div>
-    </div>
-
-    <!-- Input Area -->
-    <div class="tv-pp-input-row">
-        <label style="font-size: 13px; font-weight: 500; color: var(--text-secondary);">Nominal Rupiah:</label>
-        <input type="text" id="ppNominal" value="1.000.000" class="tv-pp-input">
-        <button onclick="calculatePP()" class="tv-pp-btn">
-            <i class="fas fa-calculator"></i>Hitung
-        </button>
-    </div>
-
-    <!-- Result Display -->
-    <div class="tv-pp-result">
-        <div class="tv-pp-result-box">
-            <div class="tv-pp-result-label">Daya Beli Saat Ini</div>
-            <div id="ppBefore" class="tv-pp-result-value" style="color: var(--positive);">Rp 1.000.000</div>
-        </div>
-        <div class="tv-pp-arrow"><i class="fas fa-long-arrow-alt-right"></i></div>
-        <div class="tv-pp-result-box">
-            <div class="tv-pp-result-label">Setelah Inflasi <span id="ppInflasiRate" style="color: var(--negative);">2.50%</span></div>
-            <div id="ppAfter" class="tv-pp-result-value" style="color: var(--negative);">Rp 975.000</div>
-        </div>
-    </div>
-
-    <!-- Visual Bar -->
-    <div style="margin-bottom: 6px;">
-        <div class="tv-pp-bar-row">
-            <span class="tv-pp-bar-label" style="color: var(--positive);">Sekarang</span>
-            <div class="tv-pp-bar-track">
-                <div id="ppBarBefore" class="tv-pp-bar-fill" style="width: 100%; background: var(--positive);"></div>
+            <div class="pp-label">Current Rate</div>
+            <div class="usd-idr-value" id="usd-idr-rate">Loading...</div>
+            <div id="usd-idr-change" class="usd-idr-change badge-neutral">
+                <i class="fas fa-sync-alt" style="animation: pulse 1s infinite;"></i> Memuat...
             </div>
         </div>
-        <div class="tv-pp-bar-row">
-            <span class="tv-pp-bar-label" style="color: var(--negative);">Inflasi</span>
-            <div class="tv-pp-bar-track">
-                <div id="ppBarAfter" class="tv-pp-bar-fill" style="width: 97.5%; background: var(--negative);"></div>
-            </div>
+        <div class="usd-idr-sparkline">
+            <canvas id="spark-usd-live"></canvas>
         </div>
-    </div>
-
-    <!-- Commodity Comparison Cards -->
-    <div id="ppCommodities" class="tv-pp-commodity-grid"></div>
-</section>
-
-<!-- ============================================ -->
-<!-- 5. USD/IDR LIVE SECTION                       -->
-<!-- ============================================ -->
-<section class="tv-usd-panel tv-fade" style="margin-bottom: 24px;">
-    <div class="tv-usd-head">
-        <div class="tv-usd-id-block">
-            <div class="tv-usd-icon"><i class="fas fa-exchange-alt"></i></div>
-            <div>
-                <div class="tv-panel-title">USD/IDR Live</div>
-                <div class="tv-panel-sub">Real-time exchange rate</div>
-            </div>
-        </div>
-        <span class="tv-tag"><span class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--positive);display:inline-block;animation:livePulse 1.5s ease-in-out infinite;"></span>&nbsp;LIVE</span>
-    </div>
-
-    <div style="display: flex; align-items: flex-end; gap: 24px; flex-wrap: wrap;">
-        <div>
-            <div class="tv-pp-result-label" style="margin-bottom: 4px;">Current Rate</div>
-            <div class="tv-usd-rate" id="usd-idr-rate">Loading...</div>
-            <div id="usd-idr-change" class="tv-trend neutral" style="margin-top: 8px;">
-                <i class="fas fa-sync-alt" style="font-size: 9px; animation: pulse 1s infinite;"></i> Memuat...
-            </div>
-        </div>
-        <div class="tv-usd-spark-block">
-            <div class="tv-usd-spark"><canvas id="spark-usd-live"></canvas></div>
-        </div>
-    </div>
-    <div class="tv-usd-meta">
-        <i class="fas fa-info-circle" style="font-size: 10px;"></i>
-        <span id="usd-last-updated">Last updated: loading...</span>
     </div>
 </section>
 
+<!-- Charts Row -->
+<div class="charts-row">
+    <div class="chart-panel">
+        <h3><i class="fas fa-chart-bar" style="color: var(--accent-primary); margin-right: 6px;"></i> Tren Historis UMP (Rata-rata Nasional)</h3>
+        <div class="chart-box"><canvas id="overviewChart"></canvas></div>
+    </div>
+    <div class="chart-panel">
+        <h3><i class="fas fa-chart-pie" style="color: var(--accent-primary); margin-right: 6px;"></i> Proporsi Pengeluaran</h3>
+        <div class="chart-box"><canvas id="pieChart"></canvas></div>
+    </div>
+</div>
+
+<!-- Rupiah Purchasing Power Section -->
+<section class="purchasing-power-section">
+    <div class="section-title"><i class="fas fa-coins"></i> Dampak Inflasi pada Uang Anda</div>
+    <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;">Inflasi mengurangi daya beli uang Anda. Berikut simulasi dampaknya:</p>
+
+    <div class="pp-input-area">
+        <label>Masukkan nominal Rupiah:</label>
+        <input type="text" id="ppNominal" value="1.000.000">
+        <button onclick="calculatePP()"><i class="fas fa-calculator"></i> Hitung Dampak</button>
+    </div>
+
+    <div class="pp-result">
+        <div class="pp-result-col">
+            <div class="pp-label">Daya Beli Saat Ini</div>
+            <div class="pp-value positive" id="ppBefore">Rp 1.000.000</div>
+        </div>
+        <div class="pp-arrow">→</div>
+        <div class="pp-result-col">
+            <div class="pp-label">Setelah Inflasi <span id="ppInflasiRate">0.21%</span></div>
+            <div class="pp-value negative" id="ppAfter">Rp 997.913</div>
+        </div>
+    </div>
+
+    <div class="pp-bars">
+        <div class="pp-bar-row">
+            <span class="label" style="color: var(--positive);">Saat ini</span>
+            <div class="pp-bar-track">
+                <div id="ppBarBefore" class="pp-bar-fill pos" style="width: 100%;"></div>
+            </div>
+        </div>
+        <div class="pp-bar-row">
+            <span class="label" style="color: var(--negative);">Inflasi</span>
+            <div class="pp-bar-track">
+                <div id="ppBarAfter" class="pp-bar-fill neg" style="width: 99.79%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="ppCommodities" class="pp-commodities"></div>
+</section>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // ===== FORMAT HELPERS =====
     function formatRupiah(num) {
         return 'Rp ' + Math.round(num).toLocaleString('id-ID').replace(/,/g, '.');
     }
@@ -565,7 +403,7 @@
     }
     function formatNominalInput(input) {
         let val = input.value.replace(/[^0-9]/g, '');
-        if (val) input.value = parseInt(val).toLocaleString('id-ID').replace(/,/g, '.');
+        if (val) input.value = parseInt(val).toLocaleString('id-ID').replace(/,/g, ',');
     }
     document.getElementById('ppNominal').addEventListener('input', function() {
         formatNominalInput(this);
@@ -588,11 +426,9 @@
             const inflasi = data.inflasi_prediksi / 100;
             const afterValue = nominal * (1 - inflasi);
             const diff = nominal - afterValue;
-
             document.getElementById('ppBefore').textContent = formatRupiah(nominal);
             document.getElementById('ppAfter').textContent = formatRupiah(afterValue);
             document.getElementById('ppInflasiRate').textContent = data.inflasi_prediksi.toFixed(2) + '%';
-
             const commodities = Object.values(data.commodities);
             let html = '';
             commodities.forEach(c => {
@@ -601,17 +437,15 @@
                 const qtyDiff = beforeQty - afterQty;
                 const unit = c.unit.split('/')[1];
                 html += `
-                    <div class="tv-pp-commodity">
-                        <div class="tv-pp-commodity-name">
-                            <i class="fas fa-box"></i>${c.name}
+                    <div class="pp-commodity-card">
+                        <div class="pp-commodity-name">${c.name}</div>
+                        <div class="pp-commodity-qty">
+                            <span class="pp-qty-before">${beforeQty} ${unit}</span>
+                            <span class="pp-qty-arrow">→</span>
+                            <span class="pp-qty-after ${qtyDiff > 0 ? 'loss' : ''}">${afterQty} ${unit}</span>
                         </div>
-                        <div class="tv-pp-qty">
-                            <span style="color: var(--positive);">${beforeQty} ${unit}</span>
-                            <span class="arrow"><i class="fas fa-arrow-right"></i></span>
-                            <span style="color: ${qtyDiff > 0 ? 'var(--negative)' : 'var(--positive)'};">${afterQty} ${unit}</span>
-                        </div>
-                        <div class="tv-pp-price">${formatRupiah(c.price)}/${unit}</div>
-                        ${qtyDiff > 0 ? '<div class="tv-pp-loss"><i class="fas fa-arrow-down"></i> Kehilangan ' + qtyDiff + ' ' + unit + '</div>' : ''}
+                        <div class="pp-qty-price">Harga: ${formatRupiah(c.price)}/${unit}</div>
+                        ${qtyDiff > 0 ? '<div class="pp-qty-loss">Kehilangan ' + qtyDiff + ' ' + unit + '</div>' : ''}
                     </div>
                 `;
             });
@@ -622,7 +456,6 @@
         }
     }
 
-    // ===== FETCH USD/IDR DATA =====
     async function fetchUsdIdr() {
         try {
             const resp = await fetch('/api/usd-idr/');
@@ -631,12 +464,10 @@
             if (data.error) {
                 document.getElementById('kpi-usd-value').textContent = 'N/A';
                 document.getElementById('kpi-usd-sub').textContent = 'Data tidak tersedia';
-                document.getElementById('kpi-usd-sub').className = 'tv-trend negative';
-                document.getElementById('kpi-usd-badge').innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
-                document.getElementById('kpi-usd-badge').className = 'tv-trend negative';
+                document.getElementById('kpi-usd-badge').innerHTML = '<i class="fas fa-exclamation-triangle" style="font-size: 8px;"></i> Error';
+                document.getElementById('kpi-usd-badge').className = 'kpi-badge badge-down';
                 document.getElementById('usd-idr-rate').textContent = 'N/A';
-                document.getElementById('usd-idr-change').innerHTML = '<i class="fas fa-exclamation-triangle"></i> Data tidak tersedia';
-                document.getElementById('usd-idr-change').className = 'tv-trend negative';
+                document.getElementById('usd-idr-change').innerHTML = '<i class="fas fa-exclamation-triangle" style="font-size: 10px;"></i> Data tidak tersedia';
                 document.getElementById('usd-last-updated').textContent = 'Last updated: error';
                 return;
             }
@@ -647,10 +478,11 @@
             const isUp = changePercent >= 0;
             const dataType = data.data_type || 'unknown';
             const source = data.source || 'Unknown';
+            const dailyRate = data.daily_rate;
             const dailyDate = data.daily_date;
+            const monthlyRate = data.monthly_rate;
             const monthlyDate = data.monthly_date;
 
-            // Format date nicely
             function formatDate(dateStr) {
                 if (!dateStr) return '';
                 try {
@@ -659,42 +491,27 @@
                 } catch { return dateStr; }
             }
 
-            // Update KPI card
             document.getElementById('kpi-usd-value').textContent = rate.toLocaleString('id-ID');
-            document.getElementById('kpi-usd-sub').innerHTML = '<i class="fas fa-arrow-' + (isUp ? 'up' : 'down') + '"></i> ' + Math.abs(changePercent).toFixed(2) + '% (' + (dataType === 'daily' ? 'harian' : 'bulanan') + ')';
-            document.getElementById('kpi-usd-sub').className = 'tv-trend ' + (isUp ? 'positive' : 'negative');
-            document.getElementById('kpi-usd-badge').innerHTML = (isUp ? '▲' : '▼') + ' ' + (isUp ? 'Naik' : 'Turun');
-            document.getElementById('kpi-usd-badge').className = 'tv-trend ' + (isUp ? 'positive' : 'negative');
+            document.getElementById('kpi-usd-sub').textContent = (isUp ? '▲' : '▼') + ' ' + Math.abs(changePercent).toFixed(2) + '% (data ' + (dataType === 'daily' ? 'harian' : 'bulanan') + ')';
+            document.getElementById('kpi-usd-badge').innerHTML = '<i class="fas fa-arrow-' + (isUp ? 'up' : 'down') + '" style="font-size: 8px;"></i> ' + (isUp ? 'Naik' : 'Turun');
+            document.getElementById('kpi-usd-badge').className = 'kpi-badge ' + (isUp ? 'badge-up' : 'badge-down');
             document.getElementById('kpi-usd-value').style.color = isUp ? 'var(--positive)' : 'var(--negative)';
-            document.getElementById('kpi-usd-foot').textContent = (dataType === 'daily' ? 'Harian' : 'Bulanan') + ' · ' + source;
 
-            // Update Ticker
-            document.getElementById('tick-usd').textContent = rate.toLocaleString('id-ID');
-            document.getElementById('tick-usd2').textContent = rate.toLocaleString('id-ID');
-            const chgTxt = (isUp ? '▲ +' : '▼ ') + Math.abs(changePercent).toFixed(2) + '%';
-            document.getElementById('tick-usd-chg').textContent = chgTxt;
-            document.getElementById('tick-usd-chg2').textContent = chgTxt;
-            document.getElementById('tick-usd-chg').className = isUp ? 'up' : 'down';
-            document.getElementById('tick-usd-chg2').className = isUp ? 'up' : 'down';
-
-            // Update Live section
             document.getElementById('usd-idr-rate').textContent = 'Rp ' + rate.toLocaleString('id-ID');
             document.getElementById('usd-idr-rate').style.color = isUp ? 'var(--positive)' : 'var(--negative)';
-            document.getElementById('usd-idr-change').innerHTML = (isUp ? '<i class="fas fa-arrow-up"></i>' : '<i class="fas fa-arrow-down"></i>') + ' ' + Math.abs(changePercent).toFixed(2) + '% (' + (dataType === 'daily' ? 'harian' : 'bulanan') + ')';
-            document.getElementById('usd-idr-change').className = 'tv-trend ' + (isUp ? 'positive' : 'negative');
+            document.getElementById('usd-idr-change').innerHTML = (isUp ? '<i class="fas fa-arrow-up" style="font-size: 10px;"></i>' : '<i class="fas fa-arrow-down" style="font-size: 10px;"></i>') + ' ' + Math.abs(changePercent).toFixed(2) + '% (data ' + (dataType === 'daily' ? 'harian' : 'bulanan') + ')';
+            document.getElementById('usd-idr-change').className = 'usd-idr-change ' + (isUp ? 'badge-up' : 'badge-down');
             
-            // Show date and source info
             let dateInfo = '';
             if (dataType === 'daily' && dailyDate) {
-                dateInfo = 'Kurs harian per ' + formatDate(dailyDate) + ' · Sumber: ' + source;
+                dateInfo = 'Kurs harian: Rp ' + rate.toLocaleString('id-ID') + ' per ' + formatDate(dailyDate) + ' | Sumber: ' + source;
             } else if (monthlyDate) {
-                dateInfo = 'Rata-rata bulanan per ' + formatDate(monthlyDate) + ' · Sumber: ' + source;
+                dateInfo = 'Rata-rata bulanan: Rp ' + rate.toLocaleString('id-ID') + ' per ' + formatDate(monthlyDate) + ' | Sumber: ' + source;
             } else {
-                dateInfo = 'Last updated: just now · Sumber: ' + source;
+                dateInfo = 'Last updated: just now | Sumber: ' + source;
             }
             document.getElementById('usd-last-updated').textContent = dateInfo;
 
-            // Render USD sparklines
             if (history.length > 1) {
                 renderSparkline('spark-usd', history, isUp);
                 renderSparkline('spark-usd-live', history, isUp);
@@ -703,9 +520,8 @@
             console.error('Failed to fetch USD/IDR:', err);
             document.getElementById('kpi-usd-value').textContent = 'Error';
             document.getElementById('kpi-usd-sub').textContent = 'Gagal memuat data';
-            document.getElementById('kpi-usd-sub').className = 'tv-trend negative';
-            document.getElementById('kpi-usd-badge').innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
-            document.getElementById('kpi-usd-badge').className = 'tv-trend negative';
+            document.getElementById('kpi-usd-badge').innerHTML = '<i class="fas fa-exclamation-triangle" style="font-size: 8px;"></i> Error';
+            document.getElementById('kpi-usd-badge').className = 'kpi-badge badge-down';
             document.getElementById('usd-idr-rate').textContent = 'Error';
             document.getElementById('usd-last-updated').textContent = 'Last updated: error';
         }
@@ -714,7 +530,8 @@
     function renderSparkline(canvasId, data, isUp) {
         const canvas = document.getElementById(canvasId);
         if (!canvas) return;
-        new Chart(canvas, {
+        if (canvas._chart) canvas._chart.destroy();
+        canvas._chart = new Chart(canvas, {
             type: 'line',
             data: {
                 labels: data.map((_, i) => i),
@@ -725,37 +542,32 @@
                     pointRadius: 0,
                     tension: 0.4,
                     fill: true,
-                    backgroundColor: isUp ? 'rgba(38,166,154,0.08)' : 'rgba(239,83,80,0.08)'
+                    backgroundColor: isUp ? 'rgba(38, 166, 154, 0.08)' : 'rgba(239, 83, 80, 0.08)'
                 }]
             },
             options: {
-                responsive: true, maintainAspectRatio: false,
+                responsive: true,
+                maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
-                scales: { x: { display: false }, y: { display: false } },
-                elements: { line: { capBezierPoints: true } }
+                scales: { x: { display: false }, y: { display: false } }
             }
         });
     }
 
-    // ===== MAIN INIT =====
     document.addEventListener('DOMContentLoaded', function() {
-        // Fetch USD/IDR on load
-        fetchUsdIdr();
-
-        // Calculate purchasing power
         calculatePP();
+        fetchUsdIdr();
+        setInterval(fetchUsdIdr, 60000);
 
         const labels = {{ chart_labels|safe }};
         const umpData = {{ ump_data|safe }};
         const pieData = {{ pie_data|safe }};
 
-        // Render UMP Bar Chart
         if (labels && labels.length > 0) {
             const ctx1 = document.getElementById('overviewChart').getContext('2d');
             const gradient = ctx1.createLinearGradient(0, 0, 0, 300);
-            gradient.addColorStop(0, 'rgba(41, 98, 255, 0.35)');
-            gradient.addColorStop(1, 'rgba(41, 98, 255, 0)');
-
+            gradient.addColorStop(0, 'rgba(41, 98, 255, 0.5)');
+            gradient.addColorStop(1, 'rgba(41, 98, 255, 0.05)');
             new Chart(ctx1, {
                 type: 'bar',
                 data: {
@@ -766,44 +578,24 @@
                         backgroundColor: gradient,
                         borderColor: '#2962FF',
                         borderWidth: 1,
-                        borderRadius: 4,
-                        hoverBackgroundColor: 'rgba(41, 98, 255, 0.5)'
+                        borderRadius: 4
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: 'rgba(26, 30, 46, 0.95)',
-                            titleColor: '#D1D4DC',
-                            bodyColor: '#868993',
-                            borderColor: '#2A2E39',
-                            borderWidth: 1,
-                            cornerRadius: 6,
-                            padding: 10
-                        }
-                    },
+                    plugins: { legend: { display: false } },
                     scales: {
-                        x: {
-                            grid: { display: false },
-                            ticks: { color: '#868993', font: { size: 11 } }
-                        },
-                        y: {
-                            grid: { color: 'rgba(54, 58, 69, 0.3)', drawBorder: false },
-                            ticks: {
-                                color: '#868993',
-                                font: { size: 11 },
-                                callback: function(v) { return 'Rp ' + (v / 1000000).toFixed(1) + ' Jt'; }
-                            }
+                        x: { grid: { display: false }, ticks: { color: '#5D606B' } },
+                        y: { 
+                            grid: { color: 'rgba(224, 227, 235, 0.8)', drawBorder: false }, 
+                            ticks: { color: '#5D606B', callback: function(v) { return 'Rp ' + (v / 1000000).toFixed(1) + ' Jt'; } } 
                         }
                     }
                 }
             });
         }
 
-        // Render Doughnut Chart
         if (pieData && pieData.length === 2) {
             const ctx2 = document.getElementById('pieChart').getContext('2d');
             new Chart(ctx2, {
@@ -812,8 +604,8 @@
                     labels: ['Makanan', 'Non-Makanan'],
                     datasets: [{
                         data: pieData,
-                        backgroundColor: ['#26A69A', '#2A2E39'],
-                        borderColor: ['#26A69A', '#2A2E39'],
+                        backgroundColor: ['#26A69A', '#2962FF'],
+                        borderColor: ['#FFFFFF', '#FFFFFF'],
                         borderWidth: 2,
                         hoverOffset: 4
                     }]
@@ -823,56 +615,16 @@
                     maintainAspectRatio: false,
                     cutout: '70%',
                     plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: { color: '#868993', boxWidth: 10, padding: 12, font: { size: 11 } }
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(26, 30, 46, 0.95)',
-                            titleColor: '#D1D4DC',
-                            bodyColor: '#868993',
-                            borderColor: '#2A2E39',
-                            borderWidth: 1,
-                            cornerRadius: 6,
-                            padding: 10
-                        }
+                        legend: { position: 'bottom', labels: { color: '#5D606B', boxWidth: 12 } }
                     }
                 }
             });
         }
 
-        // Render static sparklines for KPIs
-        const sparkData = {
-            'spark-inflasi': [2.1, 2.3, 2.2, 2.4, 2.5, 2.3, 2.4, 2.5, 2.6, 2.5, 2.4, 2.51],
-            'spark-r2': [97.0, 97.2, 97.5, 97.8, 98.0, 98.1, 98.2, 98.3, 98.4, 98.4, 98.5, 98.5],
-            'spark-pengeluaran': [3.2, 3.3, 3.3, 3.4, 3.4, 3.5, 3.5, 3.6, 3.6, 3.7, 3.7, 3.8]
-        };
-        Object.entries(sparkData).forEach(([id, data]) => {
-            const canvas = document.getElementById(id);
-            if (!canvas) return;
-            const isUp = data[data.length - 1] >= data[0];
-            new Chart(canvas, {
-                type: 'line',
-                data: {
-                    labels: data.map((_, i) => i),
-                    datasets: [{
-                        data: data,
-                        borderColor: isUp ? '#2962FF' : '#EF5350',
-                        borderWidth: 1.5,
-                        pointRadius: 0,
-                        tension: 0.4,
-                        fill: true,
-                        backgroundColor: isUp ? 'rgba(41,98,255,0.08)' : 'rgba(239,83,80,0.08)'
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { x: { display: false }, y: { display: false } },
-                    elements: { line: { capBezierPoints: true } }
-                }
-            });
-        });
+        // Default sparklines
+        renderSparkline('spark-inflasi', [0.20, 0.22, 0.25, 0.23, 0.28, 0.30, 0.28, 0.21], true);
+        renderSparkline('spark-r2', [85, 87, 88, 90, 89, 91, 90.8], true);
+        renderSparkline('spark-baseline', [1400000, 1410000, 1420000, 1430000, 1440000, 1445000, 1450000], true);
     });
 </script>
 {% endblock %}
