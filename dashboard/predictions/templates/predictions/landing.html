@@ -554,8 +554,8 @@
                 return;
             }
 
-            const rate = data.rate;
-            const changePercent = data.change_percent || 0;
+            const rate = data.latest;
+            const changePercent = data.change_pct || 0;
             const history = data.history || [];
             const isUp = changePercent >= 0;
 
