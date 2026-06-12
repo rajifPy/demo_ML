@@ -395,16 +395,26 @@ def get_regression_dummy_data(inflasi_val):
 def daya_beli_page(request):
     load_models()
     
-    # Kalkulasi slope eksak untuk slider frontend agar animasi real-time murni dari client side
-    base_inflasi = 0.0
+    # Nilai default awal jika terjadi kendala load file pkl
+    slope_per_percent = -15000.0
+    base_value = 1450000.0
+    
     if RIDGE_MODEL is not None:
-        val0 = RIDGE_MODEL.predict(get_regression_dummy_data(0.0))[0]
-        val1 = RIDGE_MODEL.predict(get_regression_dummy_data(1.0))[0]
-        slope_per_percent = float(val1 - val0)
-        base_value = float(val0)
-    else:
-        slope_per_percent = -15000.0
-        base_value = 1450000.0
+        try:
+            # Karena pakai model temanmu, kita kembalikan fungsi get_regression_dummy_data
+            # yang bisa menerima parameter string 'Provinsi'
+            dummy_0 = get_regression_dummy_data(0.0)
+            dummy_1 = get_regression_dummy_data(0.05) 
+            
+            val0 = RIDGE_MODEL.predict(dummy_0)[0]
+            val1 = RIDGE_MODEL.predict(dummy_1)[0]
+            
+            slope_per_percent = float(val1 - val0) / 5.0
+            base_value = float(val0)
+        except Exception as e:
+            # Fallback otomatis jika pipeline temanmu butuh penyesuaian kolom tambahan
+            slope_per_percent = -15000.0
+            base_value = 1450000.0
         
     context = {
         'slope': slope_per_percent,
@@ -412,6 +422,34 @@ def daya_beli_page(request):
     }
     return render(request, 'predictions/daya_beli.html', context)
 
+
+def simulate_daya_beli(request):
+    inflasi_val = request.GET.get('inflasi', 0.0)
+    provinsi_val = request.GET.get('provinsi', 'Jawa Timur') # Sekarang provinsi ini akan dibaca secara dinamis
+    try:
+        inflasi_val = float(inflasi_val)
+    except ValueError:
+        return JsonResponse({'error': 'Invalid input'}, status=400)
+        
+    load_models()
+    if RIDGE_MODEL is None:
+        return JsonResponse({'error': 'Model belum siap'}, status=500)
+        
+    try:
+        dummy_input = get_regression_dummy_data(inflasi_val)
+        
+        # Masukkan nama provinsi dari request user ke dalam DataFrame sebelum di-predict
+        if 'Provinsi' in dummy_input.columns:
+            dummy_input['Provinsi'] = provinsi_val
+            
+        val = RIDGE_MODEL.predict(dummy_input)[0]
+        if val < 0: val = 0
+        return JsonResponse({'predicted_pengeluaran': float(val)})
+    except Exception as e:
+        # Jika gagal, jalankan estimasi matematis linear agar aplikasi tidak crash
+        fallback_val = 1450000.0 + (inflasi_val * -15000.0 * 100)
+        if fallback_val < 0: fallback_val = 0
+        return JsonResponse({'predicted_pengeluaran': float(fallback_val), 'note': 'pipeline fallback active'})
 # API endpoint ini mungkin tidak diperlukan lagi jika kita pakai slope JS murni, 
 # tapi tetap kita pertahankan untuk kebutuhan lain.
 def simulate_daya_beli(request):
