@@ -48,3 +48,18 @@ class HomePageUsdIdrTests(TestCase):
         self.assertIn("fetch('/api/usd-idr/')", html)
         self.assertIn("cdn.jsdelivr.net/npm/chart.js", html)
         self.assertEqual(html.count("drawSpark('spark-inflasi'"), 1)
+
+
+class DayaBeliSimulationTests(TestCase):
+    def test_simulate_daya_beli_returns_reasonable_positive_value_for_zero_inflation(self):
+        response = self.client.get(reverse("api_simulate"), {"inflasi": 0})
+        data = response.json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertGreater(data["predicted_pengeluaran"], 800000)
+
+    def test_daya_beli_page_renders_positive_baseline_value(self):
+        response = self.client.get(reverse("daya_beli"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertGreater(response.context["base_value"], 800000)

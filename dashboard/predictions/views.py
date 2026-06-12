@@ -32,9 +32,46 @@ INFLASI_PRED_MEM = None
 DATA_HISTORIS = None
 LSTM_FEATURES = None
 RATA_PENGELUARAN = 1450000
+RIDGE_SIMULATION_DEFAULTS = None
+
+
+def _build_ridge_simulation_defaults(project_root):
+    """Build a realistic baseline row that matches Ridge training features."""
+    path = os.path.join(project_root, 'datasets', 'processed', 'clean_daya_beli.csv')
+    if not os.path.exists(path):
+        return None
+
+    df = pd.read_csv(path).sort_values(['Provinsi', 'Tahun']).copy()
+    if df.empty:
+        return None
+
+    df['Real_UMP'] = df['UMP'] / (1 + (df['Inflasi_Rata_Tahunan'] / 100.0))
+    df['Real_UMP_Growth'] = df.groupby('Provinsi')['Real_UMP'].pct_change() * 100.0
+    df['PDRB_HargaKonstan_Growth'] = df.groupby('Provinsi')['PDRB_HargaKonstan'].pct_change() * 100.0
+    df['TPT_Growth'] = df.groupby('Provinsi')['TPT'].pct_change() * 100.0
+    df['UMP_x_PDRB'] = df['Real_UMP'] * df['PDRB_HargaKonstan']
+    df['Inflasi_x_TPT'] = df['Inflasi_Rata_Tahunan'] * df['TPT']
+    df['Log_PDRB'] = np.log1p(df['PDRB_HargaKonstan'])
+    df['Log_UMP'] = np.log1p(df['Real_UMP'])
+
+    latest_year = df['Tahun'].max()
+    latest = df[df['Tahun'] == latest_year]
+    baseline_source = latest if not latest.empty else df
+    numeric_defaults = baseline_source.mean(numeric_only=True).to_dict()
+
+    return {
+        'Provinsi': baseline_source['Provinsi'].mode().iat[0] if not baseline_source['Provinsi'].mode().empty else 'Jawa Timur',
+        'UMP': float(numeric_defaults.get('UMP', 3000000.0)),
+        'Inflasi_WB_Annual': float(numeric_defaults.get('Inflasi_WB_Annual', 2.7)),
+        'GDP_PerCapita_PPP': float(numeric_defaults.get('GDP_PerCapita_PPP', 13800.0)),
+        'Pct_Unemployment_WB': float(numeric_defaults.get('Pct_Unemployment_WB', 3.4)),
+        'Poverty_Headcount_Pct': float(numeric_defaults.get('Poverty_Headcount_Pct', 9.4)),
+        'RATA_PENGELUARAN': float(numeric_defaults.get('Total_Pengeluaran', 1450000.0)),
+        'numeric_defaults': numeric_defaults,
+    }
 
 def load_models():
-    global LSTM_MODEL, LSTM_SCALER_X, LSTM_SCALER_Y, RIDGE_MODEL, RIDGE_MODEL_BUNDLE, INFLASI_PRED_MEM, DATA_HISTORIS, LSTM_FEATURES, RATA_PENGELUARAN
+    global LSTM_MODEL, LSTM_SCALER_X, LSTM_SCALER_Y, RIDGE_MODEL, RIDGE_MODEL_BUNDLE, INFLASI_PRED_MEM, DATA_HISTORIS, LSTM_FEATURES, RATA_PENGELUARAN, RIDGE_SIMULATION_DEFAULTS
     
     project_root = os.path.dirname(settings.BASE_DIR)
     models_dir = os.path.join(project_root, 'models')
@@ -51,6 +88,11 @@ def load_models():
         else:
             RIDGE_MODEL = raw
             RIDGE_MODEL_BUNDLE = None
+
+    if RIDGE_SIMULATION_DEFAULTS is None:
+        RIDGE_SIMULATION_DEFAULTS = _build_ridge_simulation_defaults(project_root)
+        if RIDGE_SIMULATION_DEFAULTS is not None:
+            RATA_PENGELUARAN = RIDGE_SIMULATION_DEFAULTS['RATA_PENGELUARAN']
             
     lstm_path = os.path.join(models_dir, 'lstm_model.pt')
     scaler_x_path = os.path.join(models_dir, 'lstm_scaler_x.pkl')
@@ -304,18 +346,38 @@ def get_regression_dummy_data(inflasi_val):
     Bangun dummy input untuk Ridge model.
     Menggunakan metadata dari model bundle jika tersedia, agar otomatis support fitur baru.
     """
-    # Default base values (disesuaikan dengan range training data)
+    load_models()
+
+    defaults = RIDGE_SIMULATION_DEFAULTS or {}
+    numeric_defaults = defaults.get('numeric_defaults', {})
+    ump_value = float(defaults.get('UMP', 3000000.0))
+    inflasi_pct = float(inflasi_val)
+    real_ump = ump_value / (1 + (inflasi_pct / 100.0))
+
     base_values = {
-        'Real_UMP': 3000000.0 / (1 + inflasi_val),
-        'TPT': 5.5,
-        'PDRB_HargaKonstan': 40000.0,  # Rata-rata nasional (range training: 14K-212K Ribu Rp)
-        'Inflasi_Rata_Tahunan': inflasi_val,
-        'Provinsi': 'Jawa Timur',  # Harus sesuai format training data (Title Case)
-        # World Bank features (rata-rata training data)
-        'Inflasi_WB_Annual': 2.7,
-        'GDP_PerCapita_PPP': 13800.0,
-        'Pct_Unemployment_WB': 3.4,
-        'Poverty_Headcount_Pct': 9.4,
+        'Provinsi': defaults.get('Provinsi', 'Jawa Timur'),
+        'TPT': float(numeric_defaults.get('TPT', 5.5)),
+        'PDRB_HargaKonstan': float(numeric_defaults.get('PDRB_HargaKonstan', 40000.0)),
+        'Inflasi_Rata_Tahunan': inflasi_pct,
+        'Gini_Rasio': float(numeric_defaults.get('Gini_Rasio', 0.30)),
+        'IPM': float(numeric_defaults.get('IPM', 72.4)),
+        'Garis_Kemiskinan': float(numeric_defaults.get('Garis_Kemiskinan', 609000.0)),
+        'Jumlah_Penduduk': float(numeric_defaults.get('Jumlah_Penduduk', 8000.0)),
+        'Pct_Populasi': float(numeric_defaults.get('Pct_Populasi', 2.8)),
+        'Pct_Akses_Air_Bersih': float(numeric_defaults.get('Pct_Akses_Air_Bersih', 87.7)),
+        'Protein_gram_per_hari': float(numeric_defaults.get('Protein_gram_per_hari', 62.3)),
+        'Inflasi_WB_Annual': float(defaults.get('Inflasi_WB_Annual', 2.7)),
+        'GDP_PerCapita_PPP': float(defaults.get('GDP_PerCapita_PPP', 13800.0)),
+        'Pct_Unemployment_WB': float(defaults.get('Pct_Unemployment_WB', 3.4)),
+        'Poverty_Headcount_Pct': float(defaults.get('Poverty_Headcount_Pct', 9.4)),
+        'Real_UMP': real_ump,
+        'Real_UMP_Growth': float(numeric_defaults.get('Real_UMP_Growth', 0.0)),
+        'PDRB_HargaKonstan_Growth': float(numeric_defaults.get('PDRB_HargaKonstan_Growth', 0.0)),
+        'TPT_Growth': float(numeric_defaults.get('TPT_Growth', 0.0)),
+        'UMP_x_PDRB': real_ump * float(numeric_defaults.get('PDRB_HargaKonstan', 40000.0)),
+        'Inflasi_x_TPT': inflasi_pct * float(numeric_defaults.get('TPT', 5.5)),
+        'Log_PDRB': float(np.log1p(float(numeric_defaults.get('PDRB_HargaKonstan', 40000.0)))),
+        'Log_UMP': float(np.log1p(real_ump)),
     }
     
     # Jika model bundle punya info fitur, tambahkan default values untuk fitur lain
@@ -324,18 +386,7 @@ def get_regression_dummy_data(inflasi_val):
             num_features = RIDGE_MODEL_BUNDLE.get('num_features', [])
             for feat in num_features:
                 if feat not in base_values:
-                    # Default values = rata-rata training data (clean_daya_beli.csv)
-                    defaults_map = {
-                        'Gini_Rasio': 0.30,
-                        'IPM': 72.4,
-                        'Garis_Kemiskinan': 609000.0,
-                        'Jumlah_Penduduk': 8000.0,  # dalam ribuan (training mean ~8,073)
-                        'Pct_Populasi': 2.8,
-                        'Pct_Akses_Air_Bersih': 87.7,
-                        'Protein_gram_per_hari': 62.3,
-                        'Jumlah_Rumah_Tangga': 2000.0,  # dalam ribuan
-                    }
-                    base_values[feat] = defaults_map.get(feat, 0.0)
+                    base_values[feat] = float(numeric_defaults.get(feat, 0.0))
         except Exception:
             pass
     
