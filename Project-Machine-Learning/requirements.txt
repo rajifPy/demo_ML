@@ -1,0 +1,8 @@
+pandas
+numpy
+matplotlib
+seaborn
+openpyxl
+scikit-learn
+tensorflow
+django
