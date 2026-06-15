@@ -500,7 +500,8 @@
             <div class="metric-field">
                 <label for="mapMetric">Indikator ekonomi</label>
                 <select id="mapMetric" class="metric-select">
-                    <option value="Total_Pengeluaran">Daya Beli (Total Pengeluaran)</option>
+                    <option value="Total_Pengeluaran_Riil">Daya Beli Riil</option>
+                    <option value="Total_Pengeluaran">Pengeluaran Nominal</option>
                     <option value="UMP">Upah Minimum Provinsi</option>
                     <option value="PDRB_HargaKonstan">PDRB Per Kapita</option>
                     <option value="TPT">Tingkat Pengangguran (TPT)</option>
@@ -552,7 +553,8 @@ const MAP_BOUNDS_PADDING = [18, 18];
 const COLOR_SCALE = ['#e6efff', '#a9caff', '#5c9df5', '#1f74d1', '#0b9c98', '#f0b44d'];
 
 const METRIC_INFO = {
-    Total_Pengeluaran: { label: 'Daya Beli', description: 'Rata-rata total pengeluaran per kapita', format: 'currency' },
+    Total_Pengeluaran_Riil: { label: 'Daya Beli Riil', description: 'Pengeluaran riil per kapita per bulan setelah penyesuaian inflasi', format: 'currency' },
+    Total_Pengeluaran: { label: 'Pengeluaran Nominal', description: 'Rata-rata total pengeluaran per kapita sebelum penyesuaian inflasi', format: 'currency' },
     UMP: { label: 'Upah Minimum Provinsi', description: 'Perbandingan UMP antarprovinsi', format: 'currency' },
     PDRB_HargaKonstan: { label: 'PDRB Per Kapita', description: 'PDRB harga konstan per kapita', format: 'currency' },
     TPT: { label: 'Tingkat Pengangguran', description: 'Tingkat pengangguran terbuka', format: 'percent' },
@@ -571,7 +573,7 @@ let heatLayer;
 let indonesiaBounds;
 let provinceData = {};
 let latestYear = '';
-let activeMetric = 'Total_Pengeluaran';
+let activeMetric = 'Total_Pengeluaran_Riil';
 let activeStats = null;
 const provinceLayers = {};
 

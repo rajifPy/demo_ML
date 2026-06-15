@@ -45,6 +45,32 @@
       }
     },
     {
+      "id": "lstm",
+      "name": "LSTM",
+      "status": "ok",
+      "metric_source": "chronological_holdout",
+      "metrics": {
+        "mae": 0.356,
+        "rmse": 0.4921,
+        "smape": 112.97,
+        "n_test": 24
+      },
+      "point_forecast": 0.2961
+    },
+    {
+      "id": "bilstm",
+      "name": "Bi-LSTM",
+      "status": "ok",
+      "metric_source": "chronological_holdout",
+      "metrics": {
+        "mae": 0.3833,
+        "rmse": 0.4982,
+        "smape": 119.72,
+        "n_test": 24
+      },
+      "point_forecast": 0.3705
+    },
+    {
       "id": "prophet",
       "name": "Prophet",
       "status": "ok",
@@ -69,32 +95,6 @@
         "n_test": 24
       },
       "point_forecast": 0.28
-    },
-    {
-      "id": "bilstm",
-      "name": "Bi-LSTM",
-      "status": "ok",
-      "metric_source": "chronological_holdout",
-      "metrics": {
-        "mae": 0.4631,
-        "rmse": 0.5741,
-        "smape": 113.98,
-        "n_test": 24
-      },
-      "point_forecast": 0.6692
-    },
-    {
-      "id": "lstm",
-      "name": "LSTM",
-      "status": "ok",
-      "metric_source": "chronological_holdout",
-      "metrics": {
-        "mae": 0.5044,
-        "rmse": 0.6213,
-        "smape": 167.88,
-        "n_test": 24
-      },
-      "point_forecast": -0.1328
     },
     {
       "id": "garch",
@@ -150,19 +150,6 @@
       "point_forecast": 0.2528
     },
     {
-      "id": "lstm",
-      "name": "LSTM",
-      "status": "ok",
-      "metric_source": "chronological_holdout",
-      "metrics": {
-        "mae": 0.3756,
-        "rmse": 0.5111,
-        "smape": 115.66,
-        "n_test": 24
-      },
-      "point_forecast": 0.541
-    },
-    {
       "id": "prophet",
       "name": "Prophet",
       "status": "ok",
@@ -181,12 +168,12 @@
       "status": "ok",
       "metric_source": "chronological_holdout",
       "metrics": {
-        "mae": 0.4492,
-        "rmse": 0.5776,
-        "smape": 173.37,
+        "mae": 0.4412,
+        "rmse": 0.5447,
+        "smape": 117.9,
         "n_test": 24
       },
-      "point_forecast": -0.3235
+      "point_forecast": 0.6138
     },
     {
       "id": "naive",
@@ -202,6 +189,19 @@
       "point_forecast": 0.28
     },
     {
+      "id": "lstm",
+      "name": "LSTM",
+      "status": "ok",
+      "metric_source": "chronological_holdout",
+      "metrics": {
+        "mae": 0.6324,
+        "rmse": 0.7167,
+        "smape": 127.66,
+        "n_test": 24
+      },
+      "point_forecast": 1.18
+    },
+    {
       "id": "garch",
       "name": "GARCH",
       "status": "skipped",
@@ -210,6 +210,19 @@
     }
   ],
   "6m": [
+    {
+      "id": "lstm",
+      "name": "LSTM",
+      "status": "ok",
+      "metric_source": "chronological_holdout",
+      "metrics": {
+        "mae": 0.3569,
+        "rmse": 0.4943,
+        "smape": 116.21,
+        "n_test": 24
+      },
+      "point_forecast": 0.4484
+    },
     {
       "id": "sarimax",
       "name": "SARIMAX",
@@ -273,25 +286,12 @@
       "status": "ok",
       "metric_source": "chronological_holdout",
       "metrics": {
-        "mae": 0.3885,
-        "rmse": 0.537,
-        "smape": 161.22,
+        "mae": 0.4712,
+        "rmse": 0.6231,
+        "smape": 167.27,
         "n_test": 24
       },
-      "point_forecast": 0.0107
-    },
-    {
-      "id": "lstm",
-      "name": "LSTM",
-      "status": "ok",
-      "metric_source": "chronological_holdout",
-      "metrics": {
-        "mae": 0.4805,
-        "rmse": 0.6715,
-        "smape": 154.01,
-        "n_test": 24
-      },
-      "point_forecast": -0.0224
+      "point_forecast": -0.1792
     },
     {
       "id": "naive",
@@ -316,6 +316,19 @@
   ],
   "12m": [
     {
+      "id": "lstm",
+      "name": "LSTM",
+      "status": "ok",
+      "metric_source": "chronological_holdout",
+      "metrics": {
+        "mae": 0.3514,
+        "rmse": 0.4921,
+        "smape": 143.8,
+        "n_test": 24
+      },
+      "point_forecast": 0.1656
+    },
+    {
       "id": "sarimax",
       "name": "SARIMAX",
       "status": "ok",
@@ -327,19 +340,6 @@
         "n_test": 24
       },
       "point_forecast": 0.4039
-    },
-    {
-      "id": "bilstm",
-      "name": "Bi-LSTM",
-      "status": "ok",
-      "metric_source": "chronological_holdout",
-      "metrics": {
-        "mae": 0.3627,
-        "rmse": 0.514,
-        "smape": 156.89,
-        "n_test": 24
-      },
-      "point_forecast": 0.0227
     },
     {
       "id": "ensemble",
@@ -360,19 +360,6 @@
       }
     },
     {
-      "id": "lstm",
-      "name": "LSTM",
-      "status": "ok",
-      "metric_source": "chronological_holdout",
-      "metrics": {
-        "mae": 0.3655,
-        "rmse": 0.5025,
-        "smape": 114.27,
-        "n_test": 24
-      },
-      "point_forecast": 0.1898
-    },
-    {
       "id": "arima",
       "name": "ARIMA",
       "status": "ok",
@@ -384,6 +371,19 @@
         "n_test": 24
       },
       "point_forecast": 0.3069
+    },
+    {
+      "id": "bilstm",
+      "name": "Bi-LSTM",
+      "status": "ok",
+      "metric_source": "chronological_holdout",
+      "metrics": {
+        "mae": 0.4023,
+        "rmse": 0.5342,
+        "smape": 172.08,
+        "n_test": 24
+      },
+      "point_forecast": -0.0361
     },
     {
       "id": "prophet",

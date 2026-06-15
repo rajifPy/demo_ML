@@ -99,8 +99,8 @@ const SCENARIOS = [
         id: 'inflasi_up', name: 'Inflasi Naik 5%', icon: 'fa-percentage', iconClass: 'neg',
         desc: 'Simulasi dampak kenaikan inflasi 5% terhadap daya beli riil masyarakat.',
         params: ['Inflasi +5%', 'UMP tetap'],
-        change: +0.2, direction: 'pos',
-        interp: 'Inflasi +5% memiliki dampak kecil (+0.2%) karena model menggunakan data nominal. Dalam konteks riil (Real_UMP), daya beli tetap terjaga selama UMP naik sesuai inflasi.'
+        change: -3.8, direction: 'neg',
+        interp: 'Kenaikan inflasi tanpa penyesuaian pendapatan cenderung menekan daya beli riil. Dalam pembacaan model aktif, efeknya dibaca sebagai penyempitan ruang belanja riil rumah tangga.'
     },
     {
         id: 'resesi', name: 'Resesi Ekonomi (TPT ×3)', icon: 'fa-exclamation-triangle', iconClass: 'neg',

@@ -287,7 +287,8 @@
     <div class="control-group">
         <label>Metrik</label>
         <select id="metric">
-            <option value="Total_Pengeluaran">Daya Beli (Total Pengeluaran)</option>
+            <option value="Total_Pengeluaran_Riil">Daya Beli Riil</option>
+            <option value="Total_Pengeluaran">Pengeluaran Nominal</option>
             <option value="UMP">Upah Minimum Provinsi</option>
             <option value="PDRB_HargaKonstan">PDRB Per Kapita</option>
             <option value="TPT">Tingkat Pengangguran (TPT)</option>
@@ -348,10 +349,15 @@ let lineChart = null;
 let radarChart = null;
 
 const METRIC_INFO = {
-    'Total_Pengeluaran': {
-        label: 'Daya Beli (Total Pengeluaran)',
+    'Total_Pengeluaran_Riil': {
+        label: 'Daya Beli Riil',
         unit: 'Rp', format: 'currency',
-        desc: 'Rata-rata total pengeluaran per kapita per bulan (makanan + bukan makanan) dalam Rupiah. Semakin tinggi = semakin kuat daya beli masyarakat.'
+        desc: 'Estimasi pengeluaran riil per kapita per bulan setelah penyesuaian inflasi. Lebih tepat untuk membaca kapasitas belanja aktual dibanding nominal murni.'
+    },
+    'Total_Pengeluaran': {
+        label: 'Pengeluaran Nominal',
+        unit: 'Rp', format: 'currency',
+        desc: 'Rata-rata total pengeluaran per kapita per bulan (makanan + bukan makanan) dalam Rupiah sebelum penyesuaian inflasi.'
     },
     'UMP': {
         label: 'Upah Minimum Provinsi',
@@ -627,7 +633,7 @@ async function loadRadarChart(provs) {
             'UMP': { label: 'UMP', format: 'currency', invert: false },
             'TPT': { label: 'TPT', format: 'percent', invert: true },  // lower = better
             'Gini_Rasio': { label: 'Gini', format: 'number', invert: true },  // lower = better
-            'Total_Pengeluaran': { label: 'Daya Beli', format: 'currency', invert: false }
+            'Total_Pengeluaran_Riil': { label: 'Daya Beli Riil', format: 'currency', invert: false }
         };
         const dims = Object.keys(dimensionMap).filter(k => {
             return provs.some(p => allProvData[p] && k in allProvData[p]);

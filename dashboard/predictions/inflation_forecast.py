@@ -31,6 +31,14 @@ CORE_EXOG_COLUMNS = [
     "FAO_FPI",
 ]
 
+SARIMAX_REGRESSOR_SHORTLIST = [
+    "USD_IDR",
+    "Brent_USD",
+    "BI_Rate",
+    "DXY",
+    "FAO_FPI",
+]
+
 
 def prepare_inflation_dataframe(df):
     frame = df.copy()
@@ -50,6 +58,10 @@ def forecast_artifact_path(project_root):
 
 def comparison_artifact_path(project_root):
     return os.path.join(project_root, "models", "inflation_multihorizon_comparison.json")
+
+
+def sarimax_feature_audit_path(project_root):
+    return os.path.join(project_root, "models", "sarimax_feature_audit.json")
 
 
 def label_for_horizon(months):
@@ -86,6 +98,14 @@ def professional_model_name(model_id):
 
 def load_saved_forecast_payload(project_root):
     path = forecast_artifact_path(project_root)
+    if not os.path.exists(path):
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def load_saved_sarimax_feature_audit(project_root):
+    path = sarimax_feature_audit_path(project_root)
     if not os.path.exists(path):
         return None
     with open(path, "r", encoding="utf-8") as f:

@@ -1,20 +1,20 @@
-# EcoDash - Prediksi Inflasi dan Daya Beli Indonesia
+# EcoDash - Prediksi Inflasi dan Proksi Daya Beli Indonesia
 
-Proyek ini membangun dashboard analitik ekonomi Indonesia yang menggabungkan dua jalur utama:
+EcoDash adalah dashboard analitik ekonomi Indonesia yang mengintegrasikan dua modul inti:
 
 1. forecast inflasi multi-horizon untuk membaca arah tekanan harga
-2. estimasi daya beli per provinsi untuk membaca dampak ke konsumsi rumah tangga
+2. estimasi pengeluaran riil per kapita per provinsi sebagai proksi daya beli rumah tangga
 
-Repo ini dipakai untuk demonstrasi profesional, analisis akademik, dan eksplorasi kebijakan berbasis data resmi.
+Repositori ini diposisikan untuk demonstrasi profesional, analisis akademik, dan eksplorasi kebijakan berbasis data resmi.
 
 ## Ringkasan sistem
 
 EcoDash saat ini memiliki empat area utama:
 
-- `Home (/)`: landing page profesional dengan headline forecast publik 1 bulan, kurs USD/IDR harian, dan ringkasan kapabilitas
+- `Home (/)`: landing page dengan headline forecast publik 1 bulan, kurs USD/IDR harian, dan ringkasan kapabilitas
 - `Dashboard (/dashboard/)`: KPI operasional, ringkasan istilah inflasi, panel USD/IDR live, dan akses cepat ke modul utama
 - `Forecasting (/forecasting/)`: forecast inflasi untuk horizon `1M`, `3M`, `6M`, dan `12M`
-- `Daya Beli (/daya-beli/)`: simulasi per provinsi berbasis inferensi penuh Ridge Regression
+- `Daya Beli (/daya-beli/)`: simulasi per provinsi berbasis inferensi penuh Ridge Regression untuk pengeluaran riil per kapita
 
 Tambahan halaman pendukung:
 
@@ -28,18 +28,18 @@ Tambahan halaman pendukung:
 
 ### Horizon publik
 
-Forecast inflasi sekarang tidak lagi hanya 1 bulan. Pipeline publik mendukung:
+Pipeline forecast publik mendukung empat horizon:
 
 - `1m`
 - `3m`
 - `6m`
 - `12m`
 
-Setiap horizon punya evaluasi sendiri, ranking model sendiri, dan artefak sendiri. Jadi model terbaik untuk 1 bulan belum tentu model terbaik untuk 12 bulan.
+Setiap horizon memiliki evaluasi, pemeringkatan model, dan artefak terpisah. Dengan demikian, model terbaik untuk 1 bulan tidak diasumsikan sama dengan model terbaik untuk 12 bulan.
 
 ### Kandidat model
 
-Shortlist kandidat yang dievaluasi:
+Kandidat model yang dievaluasi:
 
 - `Naive`
 - `ARIMA`
@@ -50,10 +50,10 @@ Shortlist kandidat yang dievaluasi:
 - `Ensemble` horizon-specific
 - `GARCH` opsional, hanya dipakai jika asumsi dan dependensi mendukung
 
-Catatan:
+Catatan metodologis:
 
 - `GARCH` tidak dipaksa tampil. Jika package `arch` tidak tersedia atau validasi asumsi tidak memadai, kandidat ini ditandai `skipped`.
-- Deep learning model tetap dicatat dalam perbandingan, tetapi headline publik hanya memakai model yang benar-benar unggul pada horizon tersebut.
+- Model deep learning tetap dicatat pada tabel perbandingan, namun headline publik hanya menggunakan model dengan performa terbaik pada horizon terkait.
 
 ### Aturan seleksi model
 
@@ -63,11 +63,11 @@ Untuk setiap horizon:
 - `RMSE` dan `sMAPE` dipakai sebagai metrik pendamping
 - UI publik hanya menampilkan `2 model terbaik`
 
-Dengan begitu halaman forecasting tetap fokus, tetapi proses seleksinya tetap transparan.
+Pendekatan ini menjaga fokus halaman forecasting tanpa menghilangkan transparansi proses seleksi.
 
 ### Confidence interval
 
-Confidence interval tidak dibuat dari shading dekoratif atau angka tetap.
+Confidence interval tidak dibentuk dari angka tetap atau elemen dekoratif.
 
 Band prediksi dibangun dari:
 
@@ -75,22 +75,26 @@ Band prediksi dibangun dari:
 2. distribusi residual historis per model-horizon
 3. penerapan quantile residual ke point forecast
 
-Implikasinya:
+Implikasi interpretatif:
 
-- horizon `1M` lebih cocok untuk pembacaan taktis
-- horizon `3M` dan `6M` lebih cocok untuk arah kebijakan
-- horizon `12M` lebih cocok untuk orientasi makro, bukan angka presisi
+- horizon `1M` lebih sesuai untuk pembacaan taktis
+- horizon `3M` dan `6M` lebih sesuai untuk arah kebijakan
+- horizon `12M` lebih sesuai untuk orientasi makro, bukan angka presisi
 
 Semakin jauh horizon, semakin lebar band-nya. Itu perilaku yang diharapkan, bukan bug.
 
-## Model daya beli
+## Model proksi daya beli
 
-Estimasi daya beli memakai `Ridge Regression` dengan baseline per provinsi terbaru.
+Modul ini tidak memprediksi daya beli murni dalam pengertian teoritis yang ketat. Target yang dipakai adalah
+`pengeluaran riil per kapita per bulan`, lalu hasilnya dibaca sebagai proksi daya beli karena lebih dekat ke ruang
+belanja riil rumah tangga setelah penyesuaian inflasi.
 
-Perubahan penting:
+Estimasi dilakukan dengan `Ridge Regression` menggunakan baseline wilayah terbaru.
 
-- simulasi tidak lagi memakai rumus demo linear
-- request simulasi sekarang membaca baseline provinsi terbaru dari `clean_daya_beli.csv`
+Karakteristik implementasi:
+
+- simulasi tidak lagi menggunakan aproksimasi linear demo
+- request simulasi membaca baseline wilayah terbaru dari `clean_daya_beli.csv`
 - input user dioverride ke baseline tersebut
 - fitur turunan dihitung ulang sebelum inferensi
 
@@ -102,20 +106,21 @@ Endpoint simulasi utama:
   - `tpt`
   - `pdrb_hargakonstan`
 
-Catatan penting:
+Catatan interpretasi:
 
-- `R²` pada model daya beli adalah skor goodness-of-fit pada data uji
-- `R²` bukan akurasi klasifikasi
+- `R^2` pada model proksi daya beli adalah skor goodness-of-fit pada data uji
+- `R^2` bukan akurasi klasifikasi
+- input `inflasi` pada simulasi dibaca sebagai skenario inflasi tahunan, lalu dipetakan ke skala fitur internal model secara konsisten
 
 ## Artefak utama
 
-Artefak forecast baru:
+Artefak forecast utama:
 
 - `models/inflation_multihorizon_forecast.json`
 - `models/inflation_multihorizon_comparison.json`
 - `models/forecast_results.json` sebagai payload turunan yang ikut disegarkan
 
-Isi artefak forecast mencakup:
+Payload artefak forecast mencakup:
 
 - `generated_at`
 - `history`
@@ -181,7 +186,7 @@ models/
 
 ## Retrain dan menjalankan proyek
 
-### 1. Install dependency
+### 1. Install dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -194,10 +199,10 @@ python download_domestic.py
 python preprocessing.py
 ```
 
-### 3. Retrain model daya beli
+### 3. Retrain model proksi daya beli
 
 ```bash
-python save_ridge_model.py
+python dashboard/train_daya_beli_ridge.py
 ```
 
 ### 4. Retrain forecast inflasi multi-horizon
@@ -214,7 +219,7 @@ Script ini akan memperbarui:
 - confidence interval
 - artefak JSON yang dibaca web
 
-### 5. Jalankan dashboard
+### 5. Jalankan aplikasi
 
 ```bash
 python dashboard/manage.py runserver
@@ -226,12 +231,12 @@ python dashboard/manage.py runserver
 python dashboard/manage.py test predictions.tests
 ```
 
-## Catatan interpretasi untuk presentasi
+## Catatan interpretasi
 
-- gunakan horizon `1M` saat butuh headline publik paling taktis
-- gunakan `3M` dan `6M` saat ingin bicara arah tren, bukan angka satu titik
-- gunakan `12M` untuk konteks makro dan diskusi risiko, bukan klaim presisi
-- jelaskan bahwa band prediksi adalah rentang estimasi, bukan jaminan
+- horizon `1M` paling relevan untuk headline publik jangka dekat
+- horizon `3M` dan `6M` lebih tepat untuk pembacaan arah tren
+- horizon `12M` dipakai untuk konteks makro dan diskusi risiko
+- band prediksi harus dibaca sebagai rentang estimasi, bukan jaminan realisasi
 
 ## Workflow branch tim
 
@@ -239,7 +244,7 @@ Branch kerja aktif untuk integrasi UI dan backend ringan:
 
 - `frontend`
 
-Alur yang dipakai:
+Alur integrasi:
 
 1. kerjakan perubahan di `frontend`
 2. audit dan test
@@ -247,9 +252,9 @@ Alur yang dipakai:
 4. merge `frontend -> main`
 5. sync `backend` dan `modelling` ke `main` terbaru
 
-## Cara teman mengambil update repo
+## Sinkronisasi branch tim
 
-Kalau branch lokal teman belum punya commit sendiri:
+Jika branch lokal belum memiliki commit yang belum dipublikasikan:
 
 ```bash
 git fetch origin
@@ -257,7 +262,7 @@ git checkout <branch-yang-dia-pakai>
 git pull --ff-only origin <branch-yang-dia-pakai>
 ```
 
-Kalau branch lokal teman sudah punya commit sendiri dan perlu disejajarkan ke `main` terbaru:
+Jika branch lokal sudah memiliki commit sendiri dan perlu disejajarkan ke `main` terbaru:
 
 ```bash
 git fetch origin
@@ -274,3 +279,4 @@ Jadi urutannya memang dimulai dari `git fetch origin`, lalu lanjut `pull --ff-on
 - Semaya David Petroes Putra - Modelling
 - Adrina Firda Marwah - Modelling
 - Okan Athallah Maredith - Frontend
+

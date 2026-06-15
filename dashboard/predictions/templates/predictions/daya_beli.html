@@ -338,10 +338,11 @@
             <div class="sim-head">
                 <div>
                     <div class="sim-kicker">Full model inference</div>
-                    <h2>Simulasi daya beli yang benar-benar memakai model Ridge</h2>
+                    <h2>Simulasi pengeluaran riil per kapita sebagai proksi daya beli</h2>
                     <p>
-                        Halaman ini tidak lagi memakai rumus linear demo. Setiap perubahan akan dikirim ke model
-                        dengan baseline provinsi terbaru, lalu fitur turunannya dihitung ulang sebelum prediksi dibuat.
+                        Simulasi ini memakai baseline wilayah terbaru, termasuk agregat nasional Indonesia, lalu menjalankan inferensi penuh pada pipeline
+                        Ridge Regression. Setiap perubahan input memicu pembentukan ulang fitur turunan sebelum estimasi dihitung,
+                        sehingga hasil akhirnya dapat dibaca sebagai pengeluaran riil per kapita per bulan.
                     </p>
                 </div>
                 <div class="sim-badge">
@@ -358,13 +359,13 @@
             <div class="sim-tab-panel active" id="tab-basic">
                 <div class="field-grid">
                     <div class="field-group full">
-                        <label for="basicProvince">Provinsi</label>
+                        <label for="basicProvince">Wilayah</label>
                         <select id="basicProvince">
                             {% for province in provinces %}
                             <option value="{{ province }}" {% if province == default_province %}selected{% endif %}>{{ province }}</option>
                             {% endfor %}
                         </select>
-                        <div class="field-help">Baseline terbaru akan mengikuti provinsi yang dipilih.</div>
+                        <div class="field-help">Pilih Indonesia untuk baseline nasional, atau pilih provinsi untuk pembacaan regional.</div>
                     </div>
 
                     <div class="field-group full">
@@ -381,7 +382,7 @@
                                 <span>15.0% tekanan tinggi</span>
                             </div>
                         </div>
-                        <div class="field-help">Mode Basic cocok untuk demo cepat. Tetap memakai full model, hanya input yang dibuka memang lebih sedikit.</div>
+                        <div class="field-help">Mode Basic memakai skenario inflasi tahunan resmi. Model internal tetap menghitung ulang seluruh fitur turunan sebelum inferensi dijalankan.</div>
                     </div>
                 </div>
             </div>
@@ -389,7 +390,7 @@
             <div class="sim-tab-panel" id="tab-advanced">
                 <div class="field-grid">
                     <div class="field-group full">
-                        <label for="advancedProvince">Provinsi</label>
+                        <label for="advancedProvince">Wilayah</label>
                         <select id="advancedProvince">
                             {% for province in provinces %}
                             <option value="{{ province }}" {% if province == default_province %}selected{% endif %}>{{ province }}</option>
@@ -414,7 +415,7 @@
                     <div class="field-group">
                         <label for="advancedPdrb">PDRB harga konstan</label>
                         <input id="advancedPdrb" type="number" step="1000" inputmode="decimal">
-                        <div class="field-help">Nominal mengikuti baseline provinsi terbaru.</div>
+                        <div class="field-help">Nominal awal mengikuti baseline wilayah terbaru.</div>
                     </div>
                 </div>
 
@@ -431,20 +432,21 @@
         <div class="sim-note">
             <h3>Cara baca hasil</h3>
             <p>
-                Angka yang muncul adalah estimasi pengeluaran per kapita per bulan. Semakin tinggi nilainya,
-                semakin besar ruang belanja rata-rata masyarakat pada konteks provinsi dan kondisi makro yang dipilih.
+                Angka yang muncul adalah estimasi pengeluaran riil per kapita per bulan. Karena target ini berasal dari
+                struktur pengeluaran rumah tangga, hasilnya paling tepat dibaca sebagai proksi daya beli, bukan ukuran
+                daya beli murni dalam definisi teoritis yang paling ketat.
             </p>
         </div>
     </div>
 
     <aside class="sim-result">
-        <div class="result-label">Prediksi pengeluaran per kapita per bulan</div>
+        <div class="result-label">{{ ridge_target_label }}</div>
         <div class="result-value" id="resultValue">Rp 0</div>
         <div class="result-status stabil" id="resultStatus">stabil</div>
 
         <div class="result-grid">
             <div class="result-item">
-                <span class="small">Provinsi</span>
+                <span class="small">Wilayah</span>
                 <span class="big" id="resultProvince">{{ default_province }}</span>
             </div>
             <div class="result-item">
@@ -452,13 +454,19 @@
                 <span class="big" id="resultYear">-</span>
             </div>
             <div class="result-item">
-                <span class="small">Baseline pengeluaran</span>
+                <span class="small">Baseline riil</span>
                 <span class="big" id="resultBaseline">Rp 0</span>
             </div>
             <div class="result-item">
                 <span class="small">Mode</span>
                 <span class="big" id="resultMode">Basic</span>
             </div>
+        </div>
+
+        <div class="result-label" style="margin-top: 10px;">Validasi model</div>
+        <div class="chip-list" style="margin-bottom: 12px;">
+            <div class="chip">R^2 uji: {{ ridge_test_r2|floatformat:3 }}</div>
+            <div class="chip">MAE uji: Rp {{ ridge_test_mae|floatformat:0 }}</div>
         </div>
 
         <div class="result-label" style="margin-top: 10px;">Input aktif yang dipakai model</div>
@@ -545,7 +553,7 @@
         function renderInputsChips(inputs) {
             inputsUsed.innerHTML = '';
             const chipMap = [
-                ['provinsi', 'Provinsi'],
+                ['provinsi', 'Wilayah'],
                 ['inflasi', 'Inflasi'],
                 ['ump', 'UMP'],
                 ['tpt', 'TPT'],

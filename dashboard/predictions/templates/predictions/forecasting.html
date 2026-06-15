@@ -302,6 +302,13 @@
     line-height: 1.6;
 }
 
+.forecast-model-subline {
+    margin-top: 8px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.6;
+}
+
 .forecast-model-metrics {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -381,6 +388,7 @@
     text-transform: uppercase;
     background: rgba(19, 23, 34, 0.06);
     color: var(--text-secondary);
+    cursor: help;
 }
 
 .metric-source-badge.walk_forward {
@@ -432,7 +440,7 @@
         <div class="forecast-summary-meta">Nilai aktual M-to-M terakhir sebagai titik awal pembacaan arah jangka dekat.</div>
     </article>
     <article class="forecast-summary-card">
-        <div class="forecast-summary-label">Posisi tahunan</div>
+        <div class="forecast-summary-label">Inflasi tahunan terakhir</div>
         <div class="forecast-summary-value" id="yoy-value-fc">-</div>
         <div class="forecast-summary-status" id="yoy-status-fc">Memuat</div>
     </article>
@@ -510,16 +518,59 @@
         const yoyStatus = document.getElementById('yoy-status-fc');
         const yoyValue = Number(summary.yoy?.value || 0);
         let tone = 'positive';
-        let label = 'Terkendali';
+        let label = 'Dalam kisaran moderat';
         if (yoyValue >= 4) {
             tone = 'negative';
-            label = 'Perlu kewaspadaan';
+            label = 'Tekanan harga tahunan tinggi';
         } else if (yoyValue >= 3) {
             tone = 'warning';
-            label = 'Di atas zona nyaman';
+            label = 'Melebihi kisaran moderat';
         }
-        yoyStatus.textContent = `${label} - data ${formatDateLabel(summary.as_of || summary.date)}`;
+        yoyStatus.textContent = `${label} | observasi ${formatDateLabel(summary.as_of || summary.date)}`;
         yoyStatus.className = `forecast-summary-status ${tone}`;
+    }
+
+    function formatModelNameFromId(modelId) {
+        const map = {
+            arima: 'ARIMA',
+            sarimax: 'SARIMAX',
+            prophet: 'Prophet',
+            lstm: 'LSTM',
+            bilstm: 'Bi-LSTM',
+            naive: 'Naive Baseline',
+            ensemble: 'Ensemble',
+            garch: 'GARCH'
+        };
+        return map[String(modelId || '').toLowerCase()] || String(modelId || '').toUpperCase();
+    }
+
+    function renderEnsembleComposition(weights) {
+        const entries = Object.entries(weights || {});
+        if (!entries.length) return '';
+        const parts = entries.map(([modelId, weight]) => (
+            `${formatModelNameFromId(modelId)} ${Number(weight * 100).toFixed(1)}%`
+        ));
+        return `<div class="forecast-model-subline">Komposisi ensemble: ${parts.join(' | ')}</div>`;
+    }
+
+    function getMetricSourceMeta(metricSource) {
+        const normalized = String(metricSource || '').toLowerCase();
+        if (normalized === 'walk_forward') {
+            return {
+                label: 'Walk-forward',
+                title: 'Evaluasi rolling out-of-sample per langkah waktu. Ini menjadi basis utama pemeringkatan karena paling dekat dengan kondisi deployment.'
+            };
+        }
+        if (normalized === 'chronological_holdout') {
+            return {
+                label: 'Holdout',
+                title: 'Evaluasi pada blok data akhir yang dipisahkan secara kronologis. Tetap informatif, namun tidak dijadikan acuan utama ranking publik.'
+            };
+        }
+        return {
+            label: 'Skipped',
+            title: 'Kandidat tidak dievaluasi penuh pada pipeline aktif, biasanya karena dependensi atau asumsi model belum terpenuhi.'
+        };
     }
 
     function buildProjectionSeries(historyLength, anchorActual, pointValue) {
@@ -676,6 +727,7 @@
                 <div class="forecast-model-interval">
                     Interval 90%: ${formatPct(model.ci_lower)} sampai ${formatPct(model.ci_upper)}
                 </div>
+                ${model.id === 'ensemble' ? renderEnsembleComposition(model.weights) : ''}
                 <div class="forecast-model-metrics">
                     <div class="forecast-model-metric">
                         <span>MAE</span>
@@ -705,17 +757,23 @@
                     </tr>
                 </thead>
                 <tbody>
-                    ${(rows || []).map((row) => `
+                    ${(rows || []).map((row) => {
+                        const sourceMeta = getMetricSourceMeta(row.metric_source);
+                        return `
                         <tr>
-                            <td>${row.name}</td>
                             <td>
-                                <span class="metric-source-badge ${row.metric_source}">
-                                    ${row.metric_source === 'walk_forward' ? 'Walk-forward' : row.metric_source === 'chronological_holdout' ? 'Holdout' : 'Skipped'}
+                                <div>${row.name}</div>
+                                ${row.id === 'ensemble' ? renderEnsembleComposition(row.weights) : ''}
+                            </td>
+                            <td>
+                                <span class="metric-source-badge ${row.metric_source}" title="${sourceMeta.title}">
+                                    ${sourceMeta.label}
                                 </span>
                             </td>
                             <td>${row.metrics ? formatMetric(row.metrics.mae) : '-'}</td>
                         </tr>
-                    `).join('')}
+                    `;
+                    }).join('')}
                 </tbody>
             </table>
         `;
@@ -758,6 +816,7 @@
                     <div class="forecast-interval">
                         ${headlineModel ? `${headlineModel.name} | interval 90% ${formatPct(headlineModel.ci_lower)} sampai ${formatPct(headlineModel.ci_upper)}` : 'Model utama belum tersedia.'}
                     </div>
+                    ${headlineModel && headlineModel.id === 'ensemble' ? renderEnsembleComposition(headlineModel.weights) : ''}
                     <span class="forecast-highlight">${headlineModel ? `Model utama: ${headlineModel.name}` : 'Menunggu model utama'}</span>
                     <div class="forecast-note-list">
                         <div class="forecast-note-item">${horizon.risk_note}</div>
@@ -773,7 +832,7 @@
                 </article>
                 <article class="forecast-aside-card">
                     <h3>Peringkat kandidat horizon ini</h3>
-                    <p>Model yang tidak ditampilkan di chart tetap dicatat di sini agar proses seleksinya transparan.</p>
+                    <p>Seluruh kandidat tetap dicatat agar dasar seleksi model, sumber evaluasi, dan posisi ensemble tetap dapat diaudit.</p>
                     ${renderComparisonTable(horizon.comparison)}
                 </article>
             </aside>

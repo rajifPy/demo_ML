@@ -7,7 +7,7 @@ from django.urls import reverse
 
 class UsdIdrApiTests(TestCase):
     @patch("urllib.request.urlopen")
-    def test_uses_latest_two_daily_rates_for_change(self, mock_urlopen):
+    def test_uses_month_start_rate_for_change(self, mock_urlopen):
         latest_payload = {
             "result": "success",
             "time_last_update_unix": 1781481600,
@@ -43,10 +43,11 @@ class UsdIdrApiTests(TestCase):
         self.assertEqual(api_response.status_code, 200)
         self.assertEqual(data["latest"], 17831.64)
         self.assertEqual(data["daily_date"], "2026-06-15")
-        self.assertEqual(data["previous_rate"], 17788.0)
-        self.assertEqual(data["previous_date"], "2026-06-12")
-        self.assertFalse(data["comparison_is_previous_calendar_day"])
-        self.assertEqual(data["change_pct"], 0.25)
+        self.assertEqual(data["previous_rate"], 17950.0)
+        self.assertEqual(data["previous_date"], "2026-06-10")
+        self.assertEqual(data["month_start_rate"], 17950.0)
+        self.assertEqual(data["month_start_date"], "2026-06-10")
+        self.assertEqual(data["change_pct"], -0.66)
         self.assertEqual(data["history"], [17950.0, 17910.0, 17788.0])
         self.assertEqual(data["data_type"], "daily")
         self.assertIn("no-store", api_response["Cache-Control"])
@@ -64,12 +65,12 @@ class HomePageUsdIdrTests(TestCase):
         self.assertContains(response, 'id="home-usd-value"')
         self.assertContains(response, 'id="home-usd-change"')
         self.assertContains(response, 'id="home-usd-date"')
-        self.assertContains(response, "Skor R² model daya beli")
+        self.assertContains(response, "R^2 uji model daya beli riil")
         self.assertNotContains(response, "Akurasi Model")
         self.assertNotIn(">0.55%</div>", html)
         self.assertIn("fetch('/api/usd-idr/', {", html)
         self.assertIn("cache: 'no-store'", html)
-        self.assertContains(response, "Buka Panduan")
+        self.assertContains(response, "Referensi Pembacaan")
 
     def test_home_and_landing_use_same_primary_inflation_forecast(self):
         home_response = self.client.get(reverse("home"))
@@ -148,6 +149,29 @@ class DayaBeliSimulationTests(TestCase):
 
         self.assertNotEqual(baseline["predicted_pengeluaran"], adjusted["predicted_pengeluaran"])
 
+    def test_simulate_daya_beli_supports_indonesia_baseline(self):
+        response = self.client.get(reverse("api_simulate"), {"provinsi": "Indonesia", "inflasi": 2.5})
+        data = response.json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data["province"], "Indonesia")
+        self.assertGreater(data["predicted_pengeluaran"], 800000)
+        self.assertEqual(data["inputs_used"]["inflasi"], 2.5)
+
+    def test_simulate_daya_beli_high_inflation_scenario_stays_in_realistic_band(self):
+        baseline = self.client.get(reverse("api_simulate"), {"provinsi": "Indonesia", "inflasi": 2.5}).json()
+        stressed = self.client.get(reverse("api_simulate"), {"provinsi": "Indonesia", "inflasi": 6.0}).json()
+
+        self.assertGreater(stressed["predicted_pengeluaran"], 1000000)
+        self.assertLess(stressed["predicted_pengeluaran"], baseline["predicted_pengeluaran"])
+        self.assertEqual(stressed["inputs_used"]["inflasi"], 6.0)
+
+    def test_simulate_requires_wilayah_selection_message(self):
+        response = self.client.get(reverse("api_simulate"))
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "Wilayah wajib dipilih")
+
     def test_daya_beli_page_renders_basic_and_advanced_modes(self):
         response = self.client.get(reverse("daya_beli"))
         html = response.content.decode()
@@ -155,7 +179,10 @@ class DayaBeliSimulationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Basic")
         self.assertContains(response, "Advanced")
-        self.assertContains(response, "Provinsi")
+        self.assertContains(response, "Wilayah")
+        self.assertContains(response, "Indonesia")
+        self.assertContains(response, "Simulasi pengeluaran riil per kapita sebagai proksi daya beli")
+        self.assertContains(response, "pengeluaran riil per kapita per bulan")
         self.assertNotIn("baseValue", html)
         self.assertNotIn("slopePerPercent", html)
 
@@ -171,6 +198,11 @@ class GuideAndDashboardTests(TestCase):
         self.assertContains(response, "MoM")
         self.assertContains(response, "YoY")
         self.assertContains(response, "Y-to-D")
+        self.assertContains(response, "Keluarga model inflasi yang dipakai")
+        self.assertContains(response, "ARIMA")
+        self.assertContains(response, "LSTM / Bi-LSTM")
+        self.assertContains(response, "Fitur inti SARIMAX untuk model inflasi")
+        self.assertContains(response, "Audit kontribusi fitur SARIMAX")
 
     def test_dashboard_shows_orientation_panel_and_human_labels(self):
         response = self.client.get(reverse("landing"))
@@ -181,10 +213,21 @@ class GuideAndDashboardTests(TestCase):
         self.assertContains(response, "Perubahan harga bulan ini")
         self.assertContains(response, "Perbandingan dengan bulan yang sama tahun lalu")
         self.assertContains(response, "Akumulasi sejak Januari")
-        self.assertContains(response, "Skor R² model daya beli")
+        self.assertContains(response, "R^2 uji model daya beli riil")
         self.assertNotContains(response, "Akurasi model daya beli")
+        self.assertContains(response, "Estimasi pengeluaran riil per kapita")
+        self.assertNotContains(response, "Kalau ingin baca cepat")
+        self.assertNotContains(response, "bahasa yang lebih santai")
+        self.assertEqual(response.context["province_count"], 38)
         self.assertContains(response, "Model utama")
         self.assertIn(reverse("guide"), html)
+
+    def test_home_uses_actual_province_count_without_indonesia_aggregate(self):
+        response = self.client.get(reverse("home"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["province_count"], 38)
+        self.assertContains(response, "Baseline wilayah terbaru dipakai untuk simulasi dan peta ekonomi.")
 
     def test_inflation_summary_api_uses_no_store_headers(self):
         response = self.client.get(reverse("api_inflasi_summary"))

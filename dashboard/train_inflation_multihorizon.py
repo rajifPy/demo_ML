@@ -20,8 +20,10 @@ from predictions.inflation_forecast import (
     FORECAST_INTERVAL_LEVEL,
     FORECAST_TEST_WINDOW,
     FORECAST_HORIZONS,
+    SARIMAX_REGRESSOR_SHORTLIST,
     comparison_artifact_path,
     forecast_artifact_path,
+    sarimax_feature_audit_path,
     label_for_horizon,
     make_forecast_payload,
     prepare_inflation_dataframe,
@@ -47,7 +49,7 @@ LSTM_PATIENCE = 8
 LSTM_HIDDEN = 48
 LSTM_LR = 0.001
 INTERVAL_ALPHA = (1.0 - FORECAST_INTERVAL_LEVEL) / 2.0
-PROPHET_REGRESSOR_CANDIDATES = [c for c in CORE_EXOG_COLUMNS if c in {"USD_IDR", "Brent_USD", "BI_Rate", "DXY", "FAO_FPI"}]
+PROPHET_REGRESSOR_CANDIDATES = [c for c in CORE_EXOG_COLUMNS if c in set(SARIMAX_REGRESSOR_SHORTLIST)]
 
 
 def smape(y_true, y_pred):
@@ -161,18 +163,21 @@ def walkforward_arima(df, horizon):
     }
 
 
-def walkforward_sarimax(df, horizon):
+def walkforward_sarimax(df, horizon, regressors=None, result_id="sarimax", result_name=None):
     y = df["Inflasi_MoM"].reset_index(drop=True)
-    regressors = get_prophet_regressors(df)
-    exog = df[regressors].reset_index(drop=True)
+    regressors = [
+        column for column in (regressors if regressors is not None else get_prophet_regressors(df))
+        if column in df.columns
+    ]
+    exog = df[regressors].reset_index(drop=True) if regressors else None
     start = len(df) - horizon - FORECAST_TEST_WINDOW
     predictions = []
     actuals = []
 
     for origin in range(start, len(df) - horizon):
         train_y = y.iloc[: origin + 1]
-        train_exog = exog.iloc[: origin + 1]
-        future_exog = exog.iloc[origin + 1 : origin + horizon + 1]
+        train_exog = exog.iloc[: origin + 1] if exog is not None else None
+        future_exog = exog.iloc[origin + 1 : origin + horizon + 1] if exog is not None else None
         actual = float(y.iloc[origin + horizon])
         try:
             model = SARIMAX(
@@ -192,7 +197,7 @@ def walkforward_sarimax(df, horizon):
         predictions.append(pred)
         actuals.append(actual)
 
-    future_exog, _ = build_future_exog(df, horizon, regressors)
+    future_exog, _ = build_future_exog(df, horizon, regressors) if regressors else (None, None)
     full_model = SARIMAX(
         y,
         exog=exog,
@@ -204,16 +209,86 @@ def walkforward_sarimax(df, horizon):
     ).fit(disp=False)
     future_point = float(np.asarray(full_model.forecast(steps=horizon, exog=future_exog)).reshape(-1)[-1])
     return {
-        "id": "sarimax",
-        "name": professional_model_name("sarimax"),
+        "id": result_id,
+        "name": result_name or professional_model_name("sarimax"),
         "metrics": metric_block(actuals, predictions),
         "residuals": (np.asarray(actuals) - np.asarray(predictions)).tolist(),
         "point_forecast": future_point,
         "metric_source": "walk_forward",
         "status": "ok",
+        "regressors": regressors,
         "backtest_predictions": [float(v) for v in predictions],
         "backtest_actuals": [float(v) for v in actuals],
         "backtest_dates": [df["Tanggal"].iloc[origin + horizon].strftime("%Y-%m-%d") for origin in range(start, len(df) - horizon)],
+    }
+
+
+def build_sarimax_feature_audit(df, horizon, base_result):
+    regressors = list(base_result.get("regressors") or get_prophet_regressors(df))
+    base_mae = float(base_result["metrics"]["mae"])
+    audit_rows = []
+
+    for feature in regressors:
+        remaining = [column for column in regressors if column != feature]
+        try:
+            reduced_result = walkforward_sarimax(
+                df,
+                horizon,
+                regressors=remaining,
+                result_id="sarimax_ablation",
+                result_name="SARIMAX drop-one",
+            )
+            reduced_mae = float(reduced_result["metrics"]["mae"])
+            delta_mae = reduced_mae - base_mae
+            audit_rows.append(
+                {
+                    "feature": feature,
+                    "remaining_regressors": remaining,
+                    "status": "ok",
+                    "dropped_model_metrics": {
+                        "mae": round(reduced_mae, 4),
+                        "rmse": round(float(reduced_result["metrics"]["rmse"]), 4),
+                        "smape": round(float(reduced_result["metrics"]["smape"]), 2),
+                        "n_test": int(reduced_result["metrics"]["n_test"]),
+                    },
+                    "delta_mae": round(delta_mae, 4),
+                    "delta_rmse": round(float(reduced_result["metrics"]["rmse"] - base_result["metrics"]["rmse"]), 4),
+                    "interpretation": (
+                        "penghapusan fitur memperburuk error; fitur memberi kontribusi positif"
+                        if delta_mae > 0.01
+                        else "penghapusan fitur hampir tidak mengubah error; kontribusi fitur cenderung marjinal"
+                        if delta_mae >= -0.01
+                        else "penghapusan fitur justru menurunkan error; shortlist layak ditinjau ulang"
+                    ),
+                }
+            )
+        except Exception as exc:
+            audit_rows.append(
+                {
+                    "feature": feature,
+                    "remaining_regressors": remaining,
+                    "status": "skipped",
+                    "reason": str(exc),
+                }
+            )
+
+    audit_rows.sort(
+        key=lambda item: (
+            item.get("status") != "ok",
+            -item.get("delta_mae", -9999),
+            item.get("feature", ""),
+        )
+    )
+    return {
+        "base_regressors": regressors,
+        "base_metrics": {
+            "mae": round(base_mae, 4),
+            "rmse": round(float(base_result["metrics"]["rmse"]), 4),
+            "smape": round(float(base_result["metrics"]["smape"]), 2),
+            "n_test": int(base_result["metrics"]["n_test"]),
+        },
+        "method": "drop-one walk-forward ablation",
+        "drop_one_tests": audit_rows,
     }
 
 
@@ -585,6 +660,7 @@ def forecast_for_horizon(df, horizon):
         },
         "risk_note": risk_note_for_horizon(horizon),
         "comparison": comparison,
+        "sarimax_feature_audit": build_sarimax_feature_audit(df, horizon, sarimax_result),
     }
 
 
@@ -598,12 +674,27 @@ def main():
 
     horizon_results = {}
     comparison_summary = {}
+    sarimax_feature_audit = {
+        "generated_at": None,
+        "methodology": {
+            "selection_basis": "Shortlist awal ditentukan dari teori ekonomi, lalu diuji ulang dengan ablation drop-one out-of-sample pada SARIMAX.",
+            "metric_primary": "MAE",
+            "note": "Delta MAE positif berarti menghapus fitur memperburuk performa, sehingga fitur tersebut membantu model."
+        },
+        "horizons": {},
+    }
     for horizon_key, horizon_months in FORECAST_HORIZONS.items():
         result = forecast_for_horizon(df, horizon_months)
         horizon_results[horizon_key] = result
         comparison_summary[horizon_key] = result["comparison"]
+        sarimax_feature_audit["horizons"][horizon_key] = {
+            "label": result["label"],
+            "forecast_months": horizon_months,
+            **(result.get("sarimax_feature_audit") or {}),
+        }
 
     payload = make_forecast_payload(df, horizon_results, comparison_summary)
+    sarimax_feature_audit["generated_at"] = payload.get("generated_at")
 
     forecast_path = forecast_artifact_path(PROJECT_ROOT)
     with open(forecast_path, "w", encoding="utf-8") as f:
@@ -613,12 +704,17 @@ def main():
     with open(comparison_path, "w", encoding="utf-8") as f:
         json.dump(comparison_summary, f, ensure_ascii=False, indent=2)
 
+    feature_audit_path = sarimax_feature_audit_path(PROJECT_ROOT)
+    with open(feature_audit_path, "w", encoding="utf-8") as f:
+        json.dump(sarimax_feature_audit, f, ensure_ascii=False, indent=2)
+
     # Keep the historical filename in sync so tracked artifacts still tell the latest story.
     with open(os.path.join(MODELS_DIR, "forecast_results.json"), "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
     print(f"Saved: {forecast_path}")
     print(f"Saved: {comparison_path}")
+    print(f"Saved: {feature_audit_path}")
     print(f"Saved: {os.path.join(MODELS_DIR, 'forecast_results.json')}")
     return payload
 

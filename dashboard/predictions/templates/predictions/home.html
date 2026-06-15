@@ -678,7 +678,7 @@
                         <i class="fas fa-wave-square"></i> Lihat Forecasting
                     </a>
                     <a href="{% url 'guide' %}" class="btn-hero secondary">
-                        <i class="fas fa-book-open"></i> Panduan Awal
+                        <i class="fas fa-book-open"></i> Referensi Pembacaan
                     </a>
                 </div>
                 <div class="hero-note">
@@ -704,14 +704,14 @@
                     </div>
                     <div class="terminal-panels">
                         <div class="terminal-panel">
-                            <small>Skor model daya beli</small>
+                            <small>R^2 uji model daya beli riil</small>
                             <strong>{{ ridge_test_r2|floatformat:3 }}</strong>
-                            <span>Skor R² data uji Ridge Regression, bukan persentase akurasi klasifikasi.</span>
+                            <span>Koefisien determinasi out-of-sample untuk estimasi {{ ridge_target_label|lower }}, dengan MAE uji sekitar Rp {{ ridge_test_mae|floatformat:0 }}.</span>
                         </div>
                         <div class="terminal-panel">
                             <small>Provinsi tercakup</small>
                             <strong>{{ province_count }}</strong>
-                            <span>Baseline provinsi terbaru dipakai untuk simulasi dan peta ekonomi.</span>
+                            <span>Baseline wilayah terbaru dipakai untuk simulasi dan peta ekonomi.</span>
                         </div>
                     </div>
                 </div>
@@ -735,15 +735,16 @@
                     <div class="stat-spark"><canvas id="spark-inflasi"></canvas></div>
                 </div>
                 <div class="stat-card" data-parallax="0.08">
-                    <div class="stat-label">Skor R² model daya beli</div>
+                    <div class="stat-label">R^2 uji model daya beli riil</div>
                     <div class="stat-value" style="color: var(--positive);">{{ ridge_test_r2|floatformat:3 }}</div>
-                    <div class="stat-change up"><i class="fas fa-check-circle"></i> Variasi data uji yang dijelaskan model</div>
+                    <div class="stat-change up"><i class="fas fa-check-circle"></i> MAE uji sekitar Rp {{ ridge_test_mae|floatformat:0 }}</div>
                     <div class="stat-spark"><canvas id="spark-r2"></canvas></div>
                 </div>
                 <div class="stat-card" data-parallax="0.11">
                     <div class="stat-label">USD/IDR Kurs</div>
                     <div class="stat-value" id="home-usd-value-clone">Memuat...</div>
                     <div class="stat-change flat" id="home-usd-change-clone"><i class="fas fa-sync-alt"></i> Kurs harian terbaru</div>
+                    <div class="stat-note" id="home-usd-fetched-at">Tanggal data diambil: -</div>
                     <div class="stat-spark"><canvas id="spark-usd"></canvas></div>
                 </div>
                 <div class="stat-card" data-parallax="0.14">
@@ -772,12 +773,12 @@
                 <div class="feature-card">
                     <div class="feature-icon"><i class="fas fa-wallet"></i></div>
                     <h3>Simulasi Daya Beli</h3>
-                    <p>Inferensi penuh Ridge Regression dengan baseline provinsi terbaru, bukan lagi pendekatan demo linear.</p>
+                    <p>Inferensi penuh Ridge Regression untuk pengeluaran riil per kapita, memakai baseline wilayah terbaru dan validasi kronologis.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon"><i class="fas fa-map-marked-alt"></i></div>
                     <h3>Peta Ekonomi Indonesia</h3>
-                    <p>Choropleth dan heat glow untuk membandingkan 38 provinsi dengan pembacaan nominal yang lebih konsisten.</p>
+                    <p>Choropleth dan heat glow untuk membandingkan 38 provinsi dengan fokus pada pembacaan daya beli riil dan indikator struktural daerah.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon"><i class="fas fa-balance-scale"></i></div>
@@ -791,8 +792,8 @@
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon"><i class="fas fa-book-open"></i></div>
-                    <h3>Panduan Awal</h3>
-                    <p>Jalur singkat untuk memahami istilah utama dan cara membaca dashboard sebelum masuk ke analisis yang lebih dalam.</p>
+                    <h3>Referensi Pembacaan</h3>
+                    <p>Ringkasan istilah, konteks indikator, dan kerangka interpretasi sebelum masuk ke analisis yang lebih rinci.</p>
                 </div>
             </div>
         </div>
@@ -803,7 +804,7 @@
             <div class="section-header reveal">
                 <span class="tag">Data Flow</span>
                 <h2>Data resmi masuk, fitur dibentuk, model berjalan, insight ditampilkan.</h2>
-                <p>Alur ini sengaja dibuat ringkas agar mudah dijelaskan saat presentasi tanpa menghilangkan kesan teknisnya.</p>
+                <p>Alur ini diringkas untuk menampilkan hubungan yang jelas antara sumber data, pembentukan fitur, dan keluaran analitis.</p>
             </div>
             <div class="flow-container reveal">
                 <div class="flow-grid">
@@ -820,7 +821,7 @@
                     <div class="flow-step" data-parallax="0.10">
                         <span class="flow-no">3</span>
                         <h3>Model</h3>
-                        <p>Setiap horizon inflasi diranking ulang dengan MAE walk-forward, lalu Ridge Regression dipakai untuk estimasi daya beli per provinsi.</p>
+                        <p>Setiap horizon inflasi diranking ulang dengan MAE walk-forward, lalu Ridge Regression dipakai untuk estimasi pengeluaran riil per kapita per wilayah.</p>
                     </div>
                     <div class="flow-step" data-parallax="0.13">
                         <span class="flow-no">4</span>
@@ -835,14 +836,14 @@
     <section class="section">
         <div class="footer-strip reveal">
             <div class="footer-copy">
-                <h3>Masuk ke dashboard saat butuh angka. Buka panduan saat butuh konteks.</h3>
+                <h3>Masuk ke dashboard untuk analisis utama. Buka referensi interpretasi untuk konteks metodologis.</h3>
                 <p>
-                    Halaman awal ini sengaja tetap ringkas dan profesional. Untuk istilah teknis ada halaman panduan,
+                    Halaman awal ini sengaja tetap ringkas dan profesional. Untuk istilah teknis tersedia halaman referensi,
                     sedangkan pekerjaan analitis penuh bisa langsung dilanjutkan di dashboard operasional.
                 </p>
             </div>
             <div class="footer-actions">
-                <a href="{% url 'guide' %}" class="btn-hero secondary">Buka Panduan</a>
+                <a href="{% url 'guide' %}" class="btn-hero secondary">Lihat Referensi</a>
                 <a href="{% url 'landing' %}" class="btn-hero primary">Buka Dashboard</a>
             </div>
         </div>
@@ -910,14 +911,14 @@
                 const direction = change > 0 ? 'up' : change < 0 ? 'down' : 'flat';
                 const sign = change > 0 ? '+' : change < 0 ? '-' : '';
                 const formattedRate = 'Rp ' + Math.round(rate).toLocaleString('id-ID');
-                const comparisonDate = data.previous_date
-                    ? data.comparison_is_previous_calendar_day
-                        ? 'vs ' + formatUsdDate(data.previous_date)
-                        : 'vs observasi harian terakhir (' + formatUsdDate(data.previous_date) + ')'
-                    : 'perubahan sebelumnya belum tersedia';
+                const comparisonDate = data.month_start_date
+                    ? 'vs awal bulan (' + formatUsdDate(data.month_start_date) + ')'
+                    : 'basis awal bulan belum tersedia';
 
                 document.getElementById('home-usd-value').textContent = formattedRate;
                 document.getElementById('home-usd-date').textContent = formatUsdDate(data.daily_date || data.monthly_date);
+                document.getElementById('home-usd-fetched-at').textContent =
+                    `Tanggal data diambil: ${formatUsdDate(data.daily_date || data.monthly_date)}`;
 
                 const homeChange = document.getElementById('home-usd-change');
                 homeChange.textContent = `${sign}${Math.abs(change).toFixed(2)}% ${comparisonDate}`;
@@ -943,6 +944,7 @@
                 document.getElementById('home-usd-change').textContent = 'Gagal memuat kurs';
                 document.getElementById('home-usd-value-clone').textContent = 'Tidak tersedia';
                 document.getElementById('home-usd-change-clone').textContent = 'Gagal memuat kurs';
+                document.getElementById('home-usd-fetched-at').textContent = 'Tanggal data diambil: tidak tersedia';
             });
 
         const parallaxNodes = Array.from(document.querySelectorAll('[data-parallax]'));
@@ -959,3 +961,4 @@
     </script>
 </body>
 </html>
+

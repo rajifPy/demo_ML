@@ -8,8 +8,17 @@ import torch.nn as nn
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.conf import settings
-from predictions.daya_beli_model import prepare_daya_beli_dataframe
-from predictions.inflation_forecast import load_saved_forecast_payload
+from predictions.daya_beli_model import (
+    NOMINAL_TARGET_COLUMN,
+    TARGET_COLUMN,
+    TARGET_LABEL,
+    prepare_daya_beli_dataframe,
+)
+from predictions.inflation_forecast import (
+    SARIMAX_REGRESSOR_SHORTLIST,
+    load_saved_forecast_payload,
+    load_saved_sarimax_feature_audit,
+)
 
 class LSTMModel(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size, dropout=0.3):
@@ -37,6 +46,30 @@ RATA_PENGELUARAN = 1450000
 RIDGE_SIMULATION_DEFAULTS = None
 PROVINCE_SIMULATION_BASELINES = None
 INFLATION_FORECAST_PAYLOAD = None
+SARIMAX_FEATURE_AUDIT = None
+
+SARIMAX_FEATURE_REASON_MAP = {
+    "USD_IDR": {
+        "label": "USD/IDR",
+        "reason": "Menangkap pass-through kurs terhadap harga impor, bahan baku, dan biaya produksi.",
+    },
+    "Brent_USD": {
+        "label": "Brent Oil",
+        "reason": "Merepresentasikan tekanan biaya energi dan logistik yang dapat merambat ke harga domestik.",
+    },
+    "BI_Rate": {
+        "label": "BI Rate",
+        "reason": "Mewakili kanal kebijakan moneter dan respons suku bunga terhadap tekanan inflasi.",
+    },
+    "DXY": {
+        "label": "US Dollar Index",
+        "reason": "Memberi konteks kekuatan dolar global, terpisah dari pergerakan rupiah yang spesifik ke Indonesia.",
+    },
+    "FAO_FPI": {
+        "label": "FAO Food Price Index",
+        "reason": "Mewakili tekanan harga pangan global, yang penting untuk struktur inflasi Indonesia.",
+    },
+}
 
 
 def _safe_float(value, fallback=0.0):
@@ -54,6 +87,123 @@ def _json_no_store(payload, status=200):
     response["Pragma"] = "no-cache"
     response["Expires"] = "0"
     return response
+
+
+def _get_feature_note(feature_name):
+    return {
+        "feature": feature_name,
+        "label": (SARIMAX_FEATURE_REASON_MAP.get(feature_name) or {}).get("label", feature_name),
+        "reason": (SARIMAX_FEATURE_REASON_MAP.get(feature_name) or {}).get(
+            "reason",
+            "Fitur ini ikut dipakai oleh artefak aktif dan tetap diaudit kontribusinya secara out-of-sample.",
+        ),
+    }
+
+
+def _get_active_sarimax_feature_keys():
+    payload = _get_sarimax_feature_audit_payload() or {}
+    horizons = (payload.get("horizons") or {}).values()
+    discovered = []
+    for horizon_payload in horizons:
+        for feature in horizon_payload.get("base_regressors", []):
+            if feature not in discovered:
+                discovered.append(feature)
+    return discovered or list(SARIMAX_REGRESSOR_SHORTLIST)
+
+
+def _get_sarimax_feature_notes():
+    return [_get_feature_note(feature_name) for feature_name in _get_active_sarimax_feature_keys()]
+
+
+def _get_model_family_notes():
+    active_sarimax_labels = [item["label"] for item in _get_sarimax_feature_notes()]
+    sarimax_inputs = ", ".join(active_sarimax_labels) if active_sarimax_labels else "regressor makroekonomi aktif"
+
+    return [
+        {
+            "name": "ARIMA",
+            "family": "Statistical time-series",
+            "inputs": "Hanya seri target Inflasi_MoM historis.",
+            "when_used": "Menjadi baseline kuat saat pola utama cukup tertangkap dari histori inflasi itu sendiri.",
+            "strength": "Sederhana, mudah diaudit, dan sering kompetitif bila sinyal exogenous tambahan tidak terlalu kuat.",
+        },
+        {
+            "name": "SARIMAX",
+            "family": "Econometric time-series with exogenous regressors",
+            "inputs": f"Seri target Inflasi_MoM ditambah regressor aktif pada artefak saat ini: {sarimax_inputs}.",
+            "when_used": "Dipakai saat tekanan inflasi diduga juga dipengaruhi shock kurs, energi, pangan global, dan kebijakan moneter.",
+            "strength": "Menjaga interpretabilitas sambil tetap menangkap pengaruh variabel eksternal yang relevan.",
+        },
+        {
+            "name": "LSTM / Bi-LSTM",
+            "family": "Sequence deep learning",
+            "inputs": "Riwayat beberapa langkah waktu dengan feature space yang lebih luas dibanding model statistik.",
+            "when_used": "Berguna saat pola non-linear dan interaksi antarfitur waktu lebih kompleks daripada yang mudah ditangkap model klasik.",
+            "strength": "Lebih fleksibel untuk pola non-linear, tetapi validasinya harus ketat karena lebih mudah overfit.",
+        },
+        {
+            "name": "Prophet",
+            "family": "Additive trend-seasonality model with regressors",
+            "inputs": "Tanggal, seri target, dan regressor tambahan yang sama dengan shortlist exogenous aktif.",
+            "when_used": "Cocok untuk baseline yang eksplisit memisahkan tren, musiman, dan efek regressor.",
+            "strength": "Cepat dibaca, relatif stabil, dan berguna sebagai pembanding yang transparan.",
+        },
+    ]
+
+
+def _get_sarimax_feature_audit_payload():
+    global SARIMAX_FEATURE_AUDIT
+    if SARIMAX_FEATURE_AUDIT is None:
+        project_root = os.path.dirname(settings.BASE_DIR)
+        SARIMAX_FEATURE_AUDIT = load_saved_sarimax_feature_audit(project_root)
+    return SARIMAX_FEATURE_AUDIT
+
+
+def _build_sarimax_feature_audit_context():
+    payload = _get_sarimax_feature_audit_payload()
+    notes = _get_sarimax_feature_notes()
+    note_lookup = {item["feature"]: item for item in notes}
+
+    if not payload:
+        return {
+            "available": False,
+            "notes": notes,
+            "message": "Artefak audit fitur SARIMAX belum tersedia. Jalankan train_inflation_multihorizon.py untuk menghasilkan hasil ablation out-of-sample terbaru.",
+        }
+
+    horizons = []
+    for horizon_key, horizon_payload in (payload.get("horizons") or {}).items():
+        rows = []
+        for row in horizon_payload.get("drop_one_tests", []):
+            note = note_lookup.get(row.get("feature"), {})
+            rows.append(
+                {
+                    "feature": row.get("feature"),
+                    "label": note.get("label", row.get("feature")),
+                    "reason": note.get("reason", ""),
+                    "status": row.get("status", "skipped"),
+                    "dropped_mae": ((row.get("dropped_model_metrics") or {}).get("mae")),
+                    "delta_mae": row.get("delta_mae"),
+                    "interpretation": row.get("interpretation") or row.get("reason") or "Audit belum tersedia.",
+                }
+            )
+        horizons.append(
+            {
+                "key": horizon_key,
+                "label": horizon_payload.get("label", horizon_key),
+                "base_regressors": horizon_payload.get("base_regressors", []),
+                "base_metrics": horizon_payload.get("base_metrics", {}),
+                "rows": rows,
+            }
+        )
+
+    return {
+        "available": True,
+        "generated_at": payload.get("generated_at"),
+        "methodology": payload.get("methodology", {}),
+        "notes": notes,
+        "horizons": horizons,
+    }
 
 
 def _pct_change(current, previous, fallback=0.0):
@@ -86,7 +236,7 @@ def _build_ridge_simulation_defaults(project_root):
         'GDP_PerCapita_PPP': float(numeric_defaults.get('GDP_PerCapita_PPP', 13800.0)),
         'Pct_Unemployment_WB': float(numeric_defaults.get('Pct_Unemployment_WB', 3.4)),
         'Poverty_Headcount_Pct': float(numeric_defaults.get('Poverty_Headcount_Pct', 9.4)),
-        'RATA_PENGELUARAN': float(numeric_defaults.get('Total_Pengeluaran', 1450000.0)),
+        'RATA_PENGELUARAN': float(numeric_defaults.get(TARGET_COLUMN, 1450000.0)),
         'numeric_defaults': numeric_defaults,
     }
 
@@ -100,6 +250,27 @@ def _build_province_simulation_baselines(project_root):
     if df.empty:
         return {}
 
+    def _aggregate_national_row(frame):
+        if frame.empty:
+            return None
+        numeric_columns = frame.select_dtypes(include=[np.number]).columns.tolist()
+        weights = frame.get('Jumlah_Penduduk')
+        use_weights = weights is not None and weights.notna().any() and float(weights.fillna(0).sum()) > 0
+
+        aggregated = {'Provinsi': 'Indonesia'}
+        for column in numeric_columns:
+            series = frame[column].astype(float)
+            valid_mask = series.notna()
+            if not valid_mask.any():
+                continue
+            if use_weights:
+                local_weights = weights[valid_mask].fillna(0).astype(float)
+                if float(local_weights.sum()) > 0:
+                    aggregated[column] = float(np.average(series[valid_mask], weights=local_weights))
+                    continue
+            aggregated[column] = float(series[valid_mask].mean())
+        return aggregated
+
     latest_rows = df.groupby('Provinsi').tail(1).copy()
     baselines = {}
     for _, row in latest_rows.iterrows():
@@ -109,8 +280,33 @@ def _build_province_simulation_baselines(project_root):
         row_dict = row.to_dict()
         baselines[province] = {
             'baseline_year': int(_safe_float(row_dict.get('Tahun'), 0)),
-            'baseline_pengeluaran': _safe_float(row_dict.get('Total_Pengeluaran'), 1450000.0),
+            'baseline_pengeluaran': _safe_float(row_dict.get(TARGET_COLUMN), 1450000.0),
+            'baseline_pengeluaran_nominal': _safe_float(row_dict.get(NOMINAL_TARGET_COLUMN), 1450000.0),
             'fields': row_dict,
+        }
+
+    latest_year = int(df['Tahun'].max())
+    national_latest = _aggregate_national_row(df[df['Tahun'] == latest_year].copy())
+    if national_latest is not None:
+        previous_year = latest_year - 1
+        national_previous = _aggregate_national_row(df[df['Tahun'] == previous_year].copy()) or {}
+        for key in (
+            'Prev_Real_UMP',
+            'Prev_PDRB_HargaKonstan',
+            'Prev_TPT',
+            'Prev_Total_Pengeluaran_Riil',
+            'Real_UMP_Growth',
+            'PDRB_HargaKonstan_Growth',
+            'TPT_Growth',
+        ):
+            if key not in national_latest and key in national_previous:
+                national_latest[key] = national_previous[key]
+        national_latest['Tahun'] = latest_year
+        baselines['Indonesia'] = {
+            'baseline_year': latest_year,
+            'baseline_pengeluaran': _safe_float(national_latest.get(TARGET_COLUMN), 1450000.0),
+            'baseline_pengeluaran_nominal': _safe_float(national_latest.get(NOMINAL_TARGET_COLUMN), 1450000.0),
+            'fields': national_latest,
         }
     return baselines
 
@@ -123,6 +319,11 @@ def _get_province_simulation_baselines():
     return PROVINCE_SIMULATION_BASELINES or {}
 
 
+def _get_actual_province_count():
+    baselines = _get_province_simulation_baselines()
+    return len([name for name in baselines.keys() if name != 'Indonesia'])
+
+
 def _build_simulation_input(province, overrides=None):
     load_models(load_inflation=False)
     baselines = _get_province_simulation_baselines()
@@ -133,23 +334,44 @@ def _build_simulation_input(province, overrides=None):
     fields = baseline['fields']
     overrides = overrides or {}
 
-    inflasi_pct = _safe_float(overrides.get('inflasi'), fields.get('Inflasi_Rata_Tahunan', 0.0))
+    baseline_local_inflation = _safe_float(fields.get('Inflasi_Rata_Tahunan'), 0.0)
+    baseline_annual_inflation = _safe_float(
+        fields.get('Inflasi_WB_Annual'),
+        baseline_local_inflation,
+    )
+    scenario_annual_inflation = _safe_float(
+        overrides.get('inflasi'),
+        baseline_annual_inflation,
+    )
+    if abs(baseline_annual_inflation) > 1e-9:
+        local_to_annual_ratio = baseline_local_inflation / baseline_annual_inflation
+        scenario_local_inflation = scenario_annual_inflation * local_to_annual_ratio
+    else:
+        scenario_local_inflation = _safe_float(
+            overrides.get('inflasi'),
+            baseline_local_inflation,
+        )
+
     ump_value = _safe_float(overrides.get('ump'), fields.get('UMP', 3000000.0))
     tpt_value = _safe_float(overrides.get('tpt'), fields.get('TPT', 5.0))
     pdrb_value = _safe_float(overrides.get('pdrb_hargakonstan'), fields.get('PDRB_HargaKonstan', 40000.0))
 
-    denominator = 1 + (inflasi_pct / 100.0)
+    denominator = 1 + (scenario_annual_inflation / 100.0)
     real_ump = ump_value / denominator if denominator != 0 else ump_value
 
     prev_real_ump = _safe_float(fields.get('Prev_Real_UMP'), fields.get('Real_UMP', real_ump))
     prev_pdrb = _safe_float(fields.get('Prev_PDRB_HargaKonstan'), pdrb_value)
     prev_tpt = _safe_float(fields.get('Prev_TPT'), tpt_value)
+    baseline_year = int(_safe_float(fields.get('Tahun'), 0))
 
     feature_row = {
         'Provinsi': province,
+        'Year_Index': _safe_float(fields.get('Year_Index'), baseline_year),
         'TPT': tpt_value,
+        'TPAK': _safe_float(fields.get('TPAK'), 68.0),
         'PDRB_HargaKonstan': pdrb_value,
-        'Inflasi_Rata_Tahunan': inflasi_pct,
+        'Inflasi_Rata_Tahunan': scenario_local_inflation,
+        'Inflation_Deflator': denominator,
         'Gini_Rasio': _safe_float(fields.get('Gini_Rasio'), 0.30),
         'IPM': _safe_float(fields.get('IPM'), 72.4),
         'Garis_Kemiskinan': _safe_float(fields.get('Garis_Kemiskinan'), 609000.0),
@@ -157,7 +379,7 @@ def _build_simulation_input(province, overrides=None):
         'Pct_Populasi': _safe_float(fields.get('Pct_Populasi'), 2.8),
         'Pct_Akses_Air_Bersih': _safe_float(fields.get('Pct_Akses_Air_Bersih'), 87.7),
         'Protein_gram_per_hari': _safe_float(fields.get('Protein_gram_per_hari'), 62.3),
-        'Inflasi_WB_Annual': _safe_float(fields.get('Inflasi_WB_Annual'), 2.7),
+        'Inflasi_WB_Annual': scenario_annual_inflation,
         'GDP_PerCapita_PPP': _safe_float(fields.get('GDP_PerCapita_PPP'), 13800.0),
         'Pct_Unemployment_WB': _safe_float(fields.get('Pct_Unemployment_WB'), 3.4),
         'Poverty_Headcount_Pct': _safe_float(fields.get('Poverty_Headcount_Pct'), 9.4),
@@ -170,9 +392,10 @@ def _build_simulation_input(province, overrides=None):
         ),
         'TPT_Growth': _pct_change(tpt_value, prev_tpt, fields.get('TPT_Growth', 0.0)),
         'UMP_x_PDRB': real_ump * pdrb_value,
-        'Inflasi_x_TPT': inflasi_pct * tpt_value,
+        'Inflasi_x_TPT': scenario_local_inflation * tpt_value,
         'Log_PDRB': float(np.log1p(max(pdrb_value, 0.0))),
         'Log_UMP': float(np.log1p(max(real_ump, 0.0))),
+        'Prev_Total_Pengeluaran_Riil': _safe_float(fields.get('Prev_Total_Pengeluaran_Riil'), baseline['baseline_pengeluaran']),
     }
 
     if RIDGE_MODEL_BUNDLE is not None and 'num_features' in RIDGE_MODEL_BUNDLE:
@@ -393,7 +616,9 @@ def landing_page(request):
         'forecast_generated_at': (forecast_payload or {}).get('generated_at'),
         'rata_pengeluaran': "{:,.0f}".format(rata_pengeluaran).replace(',', '.'),
         'ridge_test_r2': round(_safe_float((RIDGE_MODEL_BUNDLE or {}).get('test_r2'), 0.0), 3),
-        'province_count': len(_get_province_simulation_baselines()),
+        'ridge_test_mae': round(_safe_float((RIDGE_MODEL_BUNDLE or {}).get('test_mae'), 0.0), 0),
+        'ridge_target_label': (RIDGE_MODEL_BUNDLE or {}).get('target_label', TARGET_LABEL),
+        'province_count': _get_actual_province_count(),
         'chart_labels': json.dumps(chart_labels),
         'ump_data': json.dumps(ump_data),
         'pdrb_data': json.dumps(pdrb_data),
@@ -419,10 +644,12 @@ def daya_beli_page(request):
     load_models(load_inflation=False)
 
     baselines = _get_province_simulation_baselines()
-    province_names = sorted(baselines.keys())
+    province_names = sorted((name for name in baselines.keys() if name != 'Indonesia'))
+    if 'Indonesia' in baselines:
+        province_names = ['Indonesia'] + province_names
     default_province = (RIDGE_SIMULATION_DEFAULTS or {}).get('Provinsi')
     if default_province not in baselines:
-        default_province = province_names[0] if province_names else ''
+        default_province = 'Indonesia' if 'Indonesia' in baselines else (province_names[0] if province_names else '')
 
     province_defaults = {}
     for province in province_names:
@@ -431,7 +658,8 @@ def daya_beli_page(request):
         province_defaults[province] = {
             'year': baseline['baseline_year'],
             'baseline_pengeluaran': round(_safe_float(baseline['baseline_pengeluaran']), 2),
-            'inflasi': round(_safe_float(fields.get('Inflasi_Rata_Tahunan')), 2),
+            'baseline_pengeluaran_nominal': round(_safe_float(baseline['baseline_pengeluaran_nominal']), 2),
+            'inflasi': round(_safe_float(fields.get('Inflasi_WB_Annual'), fields.get('Inflasi_Rata_Tahunan')), 2),
             'ump': round(_safe_float(fields.get('UMP')), 2),
             'tpt': round(_safe_float(fields.get('TPT')), 3),
             'pdrb_hargakonstan': round(_safe_float(fields.get('PDRB_HargaKonstan')), 2),
@@ -440,12 +668,15 @@ def daya_beli_page(request):
         'provinces': province_names,
         'default_province': default_province,
         'province_defaults_json': json.dumps(province_defaults),
+        'ridge_target_label': (RIDGE_MODEL_BUNDLE or {}).get('target_label', TARGET_LABEL),
+        'ridge_test_r2': round(_safe_float((RIDGE_MODEL_BUNDLE or {}).get('test_r2'), 0.0), 3),
+        'ridge_test_mae': round(_safe_float((RIDGE_MODEL_BUNDLE or {}).get('test_mae'), 0.0), 0),
     }
     return render(request, 'predictions/daya_beli.html', context)
 def simulate_daya_beli(request):
     provinsi = request.GET.get('provinsi', '').strip()
     if not provinsi:
-        return JsonResponse({'error': 'Provinsi wajib dipilih'}, status=400)
+        return JsonResponse({'error': 'Wilayah wajib dipilih'}, status=400)
 
     inflasi_val = request.GET.get('inflasi')
     ump_val = request.GET.get('ump')
@@ -470,7 +701,7 @@ def simulate_daya_beli(request):
         return JsonResponse({'error': 'Model belum siap'}, status=500)
     if (RIDGE_MODEL_BUNDLE or {}).get('legacy_artifact'):
         return JsonResponse(
-            {'error': 'Artifact model daya beli lama tidak kompatibel dengan inference per provinsi terbaru.'},
+            {'error': 'Artifact model lama tidak kompatibel dengan inference per wilayah terbaru.'},
             status=500,
         )
 
@@ -488,11 +719,15 @@ def simulate_daya_beli(request):
         else:
             status_label = 'stabil'
 
-        inflasi_used = _safe_float(dummy_input.at[0, 'Inflasi_Rata_Tahunan'])
+        annual_inflation_used = _safe_float(
+            overrides.get('inflasi'),
+            dummy_input.at[0, 'Inflasi_WB_Annual'],
+        )
+        inflation_deflator = _safe_float(dummy_input.at[0, 'Inflation_Deflator'], 1.0)
         inputs_used = {
             'provinsi': provinsi,
-            'inflasi': round(inflasi_used, 2),
-            'ump': round(_safe_float(dummy_input.at[0, 'Real_UMP']) * (1 + (inflasi_used / 100.0)), 2),
+            'inflasi': round(annual_inflation_used, 2),
+            'ump': round(_safe_float(dummy_input.at[0, 'Real_UMP']) * inflation_deflator, 2),
             'tpt': round(_safe_float(dummy_input.at[0, 'TPT']), 3),
             'pdrb_hargakonstan': round(_safe_float(dummy_input.at[0, 'PDRB_HargaKonstan']), 2),
         }
@@ -501,8 +736,11 @@ def simulate_daya_beli(request):
             'province': provinsi,
             'baseline_year': int(baseline['baseline_year']),
             'baseline_pengeluaran': round(baseline_pengeluaran, 2),
+            'baseline_pengeluaran_nominal': round(_safe_float(baseline['baseline_pengeluaran_nominal']), 2),
             'inputs_used': inputs_used,
             'status_label': status_label,
+            'target_label': (RIDGE_MODEL_BUNDLE or {}).get('target_label', TARGET_LABEL),
+            'target_type': (RIDGE_MODEL_BUNDLE or {}).get('target_type', 'real'),
         })
     except KeyError:
         return JsonResponse({'error': 'Provinsi tidak ditemukan'}, status=404)
@@ -526,13 +764,22 @@ def home_page(request):
         'public_horizon_label': public_horizon.get('label', '1 Bulan'),
         'forecast_generated_at': (forecast_payload or {}).get('generated_at'),
         'ridge_test_r2': round(_safe_float((RIDGE_MODEL_BUNDLE or {}).get('test_r2'), 0.0), 3),
-        'province_count': len(_get_province_simulation_baselines()),
+        'ridge_test_mae': round(_safe_float((RIDGE_MODEL_BUNDLE or {}).get('test_mae'), 0.0), 0),
+        'ridge_target_label': (RIDGE_MODEL_BUNDLE or {}).get('target_label', TARGET_LABEL),
+        'province_count': _get_actual_province_count(),
     }
     return render(request, 'predictions/home.html', context)
 
 
 def guide_page(request):
-    return render(request, 'predictions/guide.html')
+    return render(
+        request,
+        'predictions/guide.html',
+        {
+            'sarimax_feature_audit': _build_sarimax_feature_audit_context(),
+            'model_family_notes': _get_model_family_notes(),
+        },
+    )
 
 
 # --- Dataset Explorer ---
@@ -683,7 +930,7 @@ def api_province_list(request):
 def api_province_data(request):
     """Return data for selected provinces and metric."""
     provinces = request.GET.getlist('provinsi')
-    metric = request.GET.get('metric', 'Total_Pengeluaran')
+    metric = request.GET.get('metric', TARGET_COLUMN)
     project_root = os.path.dirname(settings.BASE_DIR)
     path = os.path.join(project_root, 'datasets', 'processed', 'clean_daya_beli.csv')
     
@@ -691,12 +938,12 @@ def api_province_data(request):
         return JsonResponse({'error': 'Data not found'}, status=404)
     
     try:
-        df = pd.read_csv(path)
+        df = prepare_daya_beli_dataframe(pd.read_csv(path))
         if 'Provinsi' not in df.columns or 'Tahun' not in df.columns:
             return JsonResponse({'error': 'Required columns missing'}, status=500)
         
         if metric not in df.columns:
-            metric = 'Total_Pengeluaran'
+            metric = TARGET_COLUMN
         
         # Filter by provinces if specified
         if provinces:
@@ -713,7 +960,8 @@ def api_province_data(request):
         
         # Metric info
         metric_info = {
-            'Total_Pengeluaran': {'label': 'Daya Beli (Total Pengeluaran)', 'unit': 'Rp', 'format': 'currency'},
+            TARGET_COLUMN: {'label': 'Daya Beli Riil', 'unit': 'Rp', 'format': 'currency'},
+            NOMINAL_TARGET_COLUMN: {'label': 'Pengeluaran Nominal', 'unit': 'Rp', 'format': 'currency'},
             'UMP': {'label': 'Upah Minimum Provinsi', 'unit': 'Rp', 'format': 'currency'},
             'PDRB_HargaKonstan': {'label': 'PDRB Per Kapita', 'unit': 'Rp', 'format': 'currency'},
             'TPT': {'label': 'Tingkat Pengangguran Terbuka', 'unit': '%', 'format': 'percent'},
@@ -776,11 +1024,11 @@ def api_all_metrics_latest(request):
     if not os.path.exists(path):
         return JsonResponse({'error': 'Data not found'}, status=404)
     try:
-        df = pd.read_csv(path)
+        df = prepare_daya_beli_dataframe(pd.read_csv(path))
         latest_year = df['Tahun'].max()
         latest = df[df['Tahun'] == latest_year]
         
-        metrics = ['Total_Pengeluaran', 'UMP', 'PDRB_HargaKonstan', 'TPT', 'IPM', 'Gini_Rasio', 
+        metrics = [TARGET_COLUMN, 'UMP', 'PDRB_HargaKonstan', 'TPT', 'IPM', 'Gini_Rasio', 
                    'Pct_Penduduk_Miskin', 'Inflasi_Rata_Tahunan']
         available = [m for m in metrics if m in latest.columns]
         
@@ -796,7 +1044,7 @@ def api_all_metrics_latest(request):
 
 
 def api_usd_idr_latest(request):
-    """Return the latest USD/IDR rate and its previous daily observation."""
+    """Return the latest USD/IDR rate with month-to-date comparison data."""
     import urllib.request
     import json as json_lib
     from datetime import date, datetime, timedelta
@@ -804,11 +1052,13 @@ def api_usd_idr_latest(request):
     project_root = os.path.dirname(settings.BASE_DIR)
     path = os.path.join(project_root, 'datasets', 'processed', 'clean_inflasi_ts.csv')
     
-    # Prefer the latest daily reference first, then enrich it with recent history.
+    # Prefer the latest daily reference first, then enrich it with current-month history.
     daily_rate = None
     daily_date = None
     previous_rate = None
     previous_date = None
+    month_start_rate = None
+    month_start_date = None
     daily_history = []
     source_label = None
 
@@ -829,7 +1079,7 @@ def api_usd_idr_latest(request):
 
     try:
         end_date = date.today()
-        start_date = end_date - timedelta(days=14)
+        start_date = end_date.replace(day=1)
         url = (
             "https://api.frankfurter.dev/v1/"
             f"{start_date.isoformat()}..{end_date.isoformat()}"
@@ -847,19 +1097,15 @@ def api_usd_idr_latest(request):
                 if rates.get('IDR') is not None
             )
             if observations:
-                daily_history = [round(float(rate), 2) for _, rate in observations[-10:]]
+                daily_history = [round(float(rate), 2) for _, rate in observations]
+                month_start_date, month_start_rate = observations[0]
+                month_start_rate = round(float(month_start_rate), 2)
                 if daily_rate is None:
                     daily_date, daily_rate = observations[-1]
                     daily_rate = round(float(daily_rate), 2)
                     source_label = 'Frankfurter (central bank reference rates)'
-                if daily_date is not None:
-                    prior_observations = [
-                        (observation_date, round(float(rate), 2))
-                        for observation_date, rate in observations
-                        if observation_date < daily_date
-                    ]
-                    if prior_observations:
-                        previous_date, previous_rate = prior_observations[-1]
+                previous_date = month_start_date
+                previous_rate = month_start_rate
     except Exception:
         pass
     
@@ -879,20 +1125,11 @@ def api_usd_idr_latest(request):
     except Exception:
         pass
     
-    comparison_is_previous_calendar_day = False
-    if daily_date and previous_date:
-        try:
-            comparison_is_previous_calendar_day = (
-                datetime.fromisoformat(daily_date).date() - datetime.fromisoformat(previous_date).date()
-            ).days == 1
-        except ValueError:
-            comparison_is_previous_calendar_day = False
-
     # Use daily data when available, otherwise retain the existing monthly fallback.
     latest = daily_rate if daily_rate else (monthly_rate if monthly_rate else 18050)
     change_pct = 0
-    if daily_rate is not None and previous_rate:
-        change_pct = ((daily_rate - previous_rate) / previous_rate) * 100
+    if daily_rate is not None and month_start_rate:
+        change_pct = ((daily_rate - month_start_rate) / month_start_rate) * 100
     elif monthly_history and len(monthly_history) >= 2:
         prev = monthly_history[-2]
         if prev > 0:
@@ -906,7 +1143,8 @@ def api_usd_idr_latest(request):
         'daily_date': daily_date,
         'previous_rate': previous_rate,
         'previous_date': previous_date,
-        'comparison_is_previous_calendar_day': comparison_is_previous_calendar_day,
+        'month_start_rate': month_start_rate,
+        'month_start_date': month_start_date,
         'monthly_rate': monthly_rate,
         'monthly_date': monthly_date,
         'change_pct': round(change_pct, 2),
