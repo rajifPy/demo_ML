@@ -37,12 +37,26 @@
     /* Modal */
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(19, 23, 34, 0.45); backdrop-filter: blur(6px); z-index: 2000; align-items: center; justify-content: center; }
     .modal-overlay.active { display: flex; }
-    .modal-box { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 28px; max-width: 900px; width: 90%; max-height: 80vh; overflow-y: auto; position: relative; box-shadow: 0 20px 50px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.08); }
-    .modal-close { position: absolute; top: 14px; right: 14px; background: none; border: none; color: var(--text-secondary); font-size: 20px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: all 0.15s ease; }
+    .modal-box {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 28px;
+        max-width: 960px;
+        width: 92%;
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .modal-header-area { flex-shrink: 0; padding-right: 32px; }
+    .modal-body-scroll { overflow-y: auto; flex: 1 1 auto; min-height: 0; padding-right: 4px; }
+    .modal-close { position: absolute; top: 14px; right: 14px; background: none; border: none; color: var(--text-secondary); font-size: 20px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: all 0.15s ease; z-index: 1; }
     .modal-close:hover { background: var(--bg-hover); color: var(--text-primary); }
-    .modal-title { font-size: 18px; font-weight: 600; margin-bottom: 6px; color: var(--text-primary); padding-right: 32px; }
-    .modal-source { font-size: 12px; color: var(--text-secondary); margin-bottom: 20px; }
-    .modal-info { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+    .modal-title { font-size: 18px; font-weight: 600; margin-bottom: 6px; color: var(--text-primary); }
+    .modal-source { font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; }
+    .modal-info { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-top: 12px; }
 
     /* Loader, Error & Table */
     .modal-loader { display: none; flex-direction: column; align-items: center; justify-content: center; padding: 48px; gap: 16px; color: var(--text-secondary); }
@@ -50,22 +64,29 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .modal-error { display: none; flex-direction: column; align-items: center; gap: 12px; padding: 48px; color: var(--negative); text-align: center; }
     .modal-error i { font-size: 28px; }
-    .modal-table-wrap { display: none; margin-bottom: 20px; }
-    .table-scroll { overflow-x: auto; border: 1px solid var(--border-color); border-radius: 6px; }
+    .modal-table-wrap { display: none; margin-bottom: 16px; }
+    .table-scroll {
+        overflow-x: auto;
+        overflow-y: auto;
+        max-height: 360px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+    }
     .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table thead { position: sticky; top: 0; z-index: 2; }
     .data-table th { background: var(--bg-elevated); color: var(--text-secondary); font-weight: 600; text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border-color); white-space: nowrap; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
     .data-table td { padding: 10px 14px; border-bottom: 1px solid var(--border-color); color: var(--text-primary); white-space: nowrap; font-variant-numeric: tabular-nums; }
     .data-table tbody tr:nth-child(even) { background: var(--bg-hover); }
     .data-table tbody tr:hover { background: rgba(41,98,255,0.04); }
     .data-table tbody tr:last-child td { border-bottom: none; }
     .type-badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 4px; background: var(--bg-hover); color: var(--text-secondary); margin-left: 6px; vertical-align: middle; font-weight: 500; text-transform: lowercase; }
-    .table-meta { margin-top: 10px; font-size: 12px; color: var(--text-tertiary); text-align: right; }
+    .table-meta { margin-top: 8px; font-size: 12px; color: var(--text-tertiary); text-align: right; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="datasets-header">
-    <p>Jelajahi 33 dataset yang digunakan dalam proyek ini. Klik kartu untuk melihat detail.</p>
+    <p>Jelajahi 31 dataset resmi + dataset internasional &amp; World Bank yang digunakan dalam proyek ini. Klik kartu untuk melihat detail dan preview data.</p>
 </div>
 
 <div class="filter-bar">
@@ -84,30 +105,35 @@
 <div class="modal-overlay" id="dsModal">
     <div class="modal-box">
         <button class="modal-close" onclick="closeModal()">&times;</button>
-        <div class="modal-title" id="modalTitle"></div>
-        <div class="modal-source" id="modalSource"></div>
 
-        <div id="modalLoader" class="modal-loader">
-            <div class="spinner"></div>
-            <p>Memuat data...</p>
+        <div class="modal-header-area">
+            <div class="modal-title" id="modalTitle"></div>
+            <div class="modal-source" id="modalSource"></div>
         </div>
 
-        <div id="modalError" class="modal-error">
-            <i class="fas fa-circle-exclamation"></i>
-            <p>Gagal memuat data preview. Silakan coba lagi nanti.</p>
-        </div>
-
-        <div id="modalTableWrap" class="modal-table-wrap">
-            <div class="table-scroll">
-                <table class="data-table" id="modalTable">
-                    <thead></thead>
-                    <tbody></tbody>
-                </table>
+        <div class="modal-body-scroll">
+            <div id="modalLoader" class="modal-loader">
+                <div class="spinner"></div>
+                <p>Memuat data...</p>
             </div>
-            <div class="table-meta" id="modalTableMeta"></div>
-        </div>
 
-        <div class="modal-info" id="modalInfo"></div>
+            <div id="modalError" class="modal-error">
+                <i class="fas fa-circle-exclamation"></i>
+                <p>Gagal memuat data preview. Silakan coba lagi nanti.</p>
+            </div>
+
+            <div id="modalTableWrap" class="modal-table-wrap">
+                <div class="table-scroll">
+                    <table class="data-table" id="modalTable">
+                        <thead></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="table-meta" id="modalTableMeta"></div>
+            </div>
+
+            <div class="modal-info" id="modalInfo"></div>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -115,39 +141,220 @@
 {% block extra_js %}
 <script>
 const DATASETS = [
-    {id:1, name:"Indeks Harga Konsumen (IHK)", source:"BPS", cat:"domestic", model:"Model 1", period:"2005-2023", file:"Indeks Harga Konsumen (Umum)/Indeks Harga Konsumen 90 Kota (Umum), 2023.csv", link:"https://www.bps.go.id/id/statistics-table/2/MiMy/indeks-harga-konsumen--umum-.html", desc:"Indeks harga konsumen umum nasional, digunakan sebagai fitur eksogenous LSTM."},
-    {id:2, name:"Inflasi Bulanan (M to M)", source:"BPS", cat:"domestic", model:"Model 1", period:"2005-2026", file:"Inflasi Bulanan/Inflasi Bulanan (M-to-M), 2026.csv", link:"https://www.bps.go.id/id/statistics-table/2/MSMy/inflasi--umum-.html", desc:"Target prediksi LSTM. Data inflasi month-to-month dari seluruh kota BPS."},
-    {id:3, name:"Inflasi Tahun Kalender (Y-to-D)", source:"BPS", cat:"domestic", model:"Model 1", period:"2009-2026", file:"Inflasi Umum, Inti, Harga Diatur Pemerintah, dan Bergejolak Nasional (M-to-M dan Y-to-D)/Inflasi Umum, Inti, Harga Diatur Pemerintah, dan Bergejolak Nasional (M-to-M dan Y-to-D), 2009-2026.csv", link:"https://www.bps.go.id/id/statistics-table/1/OTE0IzE=/tingkat-inflasi-harga-konsumen-nasional-tahun-kalender--y-to-d---sup-1--sup---2022-100-.html", desc:"Referensi tingkat inflasi tahun kalender."},
-    {id:4, name:"BI Rate / Data Inflasi", source:"Bank Indonesia", cat:"domestic", model:"Model 1", period:"2005-2025", file_format:"XLSX", link:"https://www.bi.go.id/id/statistik/indikator/data-inflasi.aspx", desc:"Suku bunga acuan Bank Indonesia, fitur penting untuk prediksi inflasi. (File XLSX, lihat sumber)."},
-    {id:5, name:"Upah Minimum Provinsi (UMP)", source:"BPS Jateng", cat:"provinsi", model:"Model 2", period:"2021-2025", file:"Upah Minimum Provinsi/Upah Minimum Provinsi (UMP) per Bulan Menurut Provinsi di Indonesia, 2025.csv", link:"https://jateng.bps.go.id/id/statistics-table/2/MjgyNCMy/upah-minimum-provinsi-ump-per-bulan-menurut-provinsi-di-indonesia.html", desc:"UMP per provinsi, diolah menjadi Real_UMP (inflasi-adjusted) untuk regresi."},
-    {id:6, name:"Pengeluaran per Kapita", source:"BPS", cat:"provinsi", model:"Model 2", period:"2017-2025", file:"Rata-rata Pengeluaran per Kapita Sebulan Makanan dan Bukan Makanan/Rata-rata Pengeluaran per Kapita Sebulan Makanan dan Bukan Makanan di Daerah Perkotaan dan Perdesaan Menurut Provinsi (rupiah), 2025.csv", link:"https://www.bps.go.id/id/statistics-table/3/V1ZKMWVrSTNOek5ZZUZOcVZEZGFValJvV0hWalFUMDkjMyMwMDAw/rata-rata-pengeluaran-per-kapita-sebulan-makanan-dan-bukan-makanan-di-daerah-perkotaan-dan-perdesaan-menurut-provinsi--rupiah-.html?year=2025", desc:"Target Model 2. Rata-rata pengeluaran per kapita sebulan (makanan + bukan makanan)."},
-    {id:7, name:"Data Historis USD/IDR", source:"Frankfurter / Yahoo", cat:"domestic", model:"Model 1", period:"2005-2026", file:"Data Historis USD_IDR/USD_IDR Historical Data (2).csv", link:"https://id.investing.com/currencies/usd-idr-historical-data", desc:"Kurs USD/IDR historis, fitur eksogenous untuk Model 1."},
-    {id:8, name:"TPT Semester & Provinsi", source:"Open Data Jabar", cat:"provinsi", model:"Model 2", period:"2020-2025", file:"Tingkat Pengangguran Terbuka Berdasarkan Semester dan Provinsi di Indonesia/disnakertrans-od_21012_tingkat_pengangguran_terbuka_brdsrkn_semester_prov_v1_data.csv", link:"https://opendata.jabarprov.go.id/id/dataset/tingkat-pengangguran-terbuka-berdasarkan-semester-dan-provinsi-di-indonesia", desc:"Tingkat Pengangguran Terbuka per semester dan provinsi."},
-    {id:9, name:"TPT & TPAK Menurut Provinsi", source:"BPS", cat:"provinsi", model:"Model 2", period:"2017-2025", file:"Tingkat Pengangguran Terbuka (TPT) dan Tingkat Partisipasi Angkatan Kerja (TPAK) Menurut Provinsi/Tingkat Pengangguran Terbuka (TPT) dan Tingkat Partisipasi Angkatan Kerja (TPAK) Menurut Provinsi, 2023.csv", link:"https://www.bps.go.id/id/statistics-table/3/V2pOVWJWcHJURGg0U2pONFJYaExhVXB0TUhacVFUMDkjMw%3D%3D/tingkat-pengangguran-terbuka--tpt--dan-tingkat-partisipasi-angkatan-kerja--tpak--menurut-provinsi--2019.html", desc:"TPT dan TPAK menurut provinsi dari BPS."},
-    {id:10, name:"PDRB Per Kapita", source:"BPS", cat:"provinsi", model:"Model 2", period:"2010-2025", file:"Produk Domestik Regional Bruto Per Kapita (Ribu Rupiah)/[Seri 2010] Produk Domestik Regional Bruto Per Kapita, 2025.csv", link:"https://www.bps.go.id/id/statistics-table/2/Mjg4IzI=/-seri-2010--produk-domestik-regional-bruto-per-kapita--ribu-rupiah-.html", desc:"PDRB per kapita harga konstan, indikator pertumbuhan ekonomi daerah."},
-    {id:11, name:"Persentase Penduduk Miskin", source:"Open Data Jabar", cat:"provinsi", model:"Model 2", period:"2010-2024", file:"Persentase Penduduk Miskin Berdasarkan Provinsi di Indonesia/bps-od_20948_persentase_penduduk_miskin__prov_di_indonesia_v2_data.csv", link:"https://opendata.jabarprov.go.id/id/dataset/persentase-penduduk-miskin-berdasarkan-provinsi-di-indonesia", desc:"Persentase penduduk miskin per provinsi."},
-    {id:12, name:"Inflasi Komponen (Umum/Inti/Diatur/Bergejolak)", source:"BPS", cat:"domestic", model:"Model 1", period:"2009-2026", file:"Inflasi Umum, Inti, Harga Diatur Pemerintah, dan Bergejolak Nasional (M-to-M dan Y-to-D)/Inflasi Umum, Inti, Harga Diatur Pemerintah, dan Bergejolak Nasional (M-to-M dan Y-to-D), 2009-2026.csv", link:"https://www.bps.go.id/id/statistics-table/1/OTA4IzE=/inflasi-umum--inti--harga-yang-diatur-pemerintah--dan-barang-bergejolak-inflasi-indonesia--2009-2025.html", desc:"Komponen inflasi: umum, inti, harga diatur, dan bergejolak."},
-    {id:13, name:"Harga Minyak Mentah (WTI)", source:"IndexMundi", cat:"intl", model:"Model 1", period:"2001-2026", file:"Harga Bulanan Minyak Mentah (minyak bumi) - Dolar AS per Barel/harga_bulanan_minyak_mentah_usd_per_barel.csv", link:"https://www.indexmundi.com/commodities/?commodity=crude-oil&months=300", desc:"Harga minyak WTI bulanan, fitur eksogenous untuk LSTM."},
-    {id:14, name:"Geopolitical Risk Index", source:"policyuncertainty.com", cat:"intl", model:"Model 1", period:"1985-2026", file:"international/data_gpr_export.csv", link:"https://www.policyuncertainty.com/gpr.html", desc:"Indeks risiko geopolitik global."},
-    {id:15, name:"FAO Food Price Index", source:"FAO", cat:"intl", model:"Model 1", period:"1990-2026", file_format:"XLSX", link:"https://www.fao.org/worldfoodsituation/foodpricesindex/en/", desc:"Indeks harga pangan global dari FAO. (File XLSX, lihat sumber)."},
-    {id:16, name:"Commodity Markets (26 komoditas)", source:"World Bank", cat:"intl", model:"Model 1", period:"1960-2026", file_format:"XLSX", link:"https://www.worldbank.org/en/research/commodity-markets", desc:"26 komoditas dari World Bank CMO: minyak, batu bara, CPO, pangan, logam, dll. (File XLSX, lihat sumber)."},
-    {id:17, name:"Gini Ratio Menurut Provinsi", source:"BPS", cat:"provinsi", model:"Model 2", period:"2010-2025", file_format:"XLSX", link:"https://www.bps.go.id/id/statistics-table/2/OTgjMg==/gini-rasio--maret-2023.html", desc:"Rasio gini (ketimpangan pendapatan) per provinsi. (File XLSX, lihat sumber)."},
-    {id:18, name:"Indeks Pembangunan Manusia (IPM)", source:"BPS", cat:"provinsi", model:"Model 2", period:"2010-2024", file:"domestic_baru/IPM/[Metode Baru] Indeks Pembangunan Manusia (IPM) menurut Provinsi, 2024.csv", link:"https://www.bps.go.id/id/statistics-table/2/NDk0IzI=/-metode-baru--indeks-pembangunan-manusia-menurut-provinsi.html", desc:"IPM per provinsi dari BPS."},
-    {id:19, name:"Garis Kemiskinan (Rp/Kapita/Bulan)", source:"BPS", cat:"provinsi", model:"Model 2", period:"2013-2025", file_format:"XLSX", link:"https://www.bps.go.id/id/statistics-table/2/MTk1IzI=/poverty-line--rupiah-kapita-month--by-province-and-area.html", desc:"Garis kemiskinan per provinsi (rata-rata perkotaan + perdesaan). (File XLSX, lihat sumber)."},
-    {id:20, name:"Jumlah Penduduk Menurut Provinsi", source:"BPS Sulut", cat:"provinsi", model:"Model 2", period:"2018-2024", file:"domestic_baru/Jumlah_Penduduk/Jumlah Penduduk Menurut Provinsi di Indonesia, 2024.csv", link:"https://sulut.bps.go.id/id/statistics-table/2/OTU4IzI=/jumlah-penduduk-menurut-provinsi-di-indonesia.html", desc:"Jumlah penduduk (ribu jiwa) per provinsi."},
-    {id:21, name:"Akses Air Minum Layak", source:"BPS", cat:"provinsi", model:"Model 2", period:"2009-2025", file_format:"XLSX", link:"https://www.bps.go.id/id/statistics-table/2/ODU0IzI=/persentase-rumah-tangga-yang-memiliki-akses-terhadap-sumber-air-minum-layak-menurut-provinsi-dan-klasifikasi-desa--persen-.html", desc:"Persentase rumah tangga dengan akses air minum layak per provinsi. (File XLSX, lihat sumber)."},
-    {id:22, name:"Konsumsi Protein Per Kapita", source:"BPS", cat:"domestic", model:"Model 2", period:"1990-2025", file_format:"XLS", link:"https://www.bps.go.id/id/statistics-table/1/MTk4NiMx/rata-rata-harian-konsumsi-protein-per-kapita-dan-konsumsi-kalori-per-kapita-tahun-1990-2023.html", desc:"Rata-rata konsumsi protein harian per kapita (data nasional). (File XLS, lihat sumber)."},
-    {id:23, name:"Inflasi (World Bank API)", source:"World Bank", cat:"wb", model:"Model 2", period:"2010-2024", file:"domestic_baru/WorldBank_Nasional/inflasi_worldbank.csv", link:"https://data.worldbank.org", desc:"Inflasi tahunan (%) dari World Bank. Indikator: FP.CPI.TOTL.ZG."},
-    {id:24, name:"GDP per Capita PPP", source:"World Bank", cat:"wb", model:"Model 2", period:"2010-2024", file:"domestic_baru/WorldBank_Nasional/gdp_percapita_ppp.csv", link:"https://data.worldbank.org", desc:"GDP per kapita PPP (constant 2017 $). Indikator: NY.GDP.PCAP.PP.KD."},
-    {id:25, name:"Unemployment Rate", source:"World Bank", cat:"wb", model:"Model 2", period:"2010-2024", file:"domestic_baru/WorldBank_Nasional/unemployment_worldbank.csv", link:"https://data.worldbank.org", desc:"Tingkat pengangguran (%). Indikator: SL.UEM.TOTL.ZS."},
-    {id:26, name:"Poverty Headcount", source:"World Bank", cat:"wb", model:"Model 2", period:"2010-2024", file:"domestic_baru/WorldBank_Nasional/poverty_headcount.csv", link:"https://data.worldbank.org", desc:"Persentase penduduk miskin nasional. Indikator: SI.POV.NAHC."},
-    {id:27, name:"Crude Oil Brent (USD/Barel)", source:"Yahoo Finance", cat:"intl", model:"Model 1", period:"2007-2026", file:"international/crude_oil_brent.csv", link:"https://finance.yahoo.com/quote/BZ=F/", desc:"Harga minyak Brent bulanan, fitur SARIMAX exogenous."},
-    {id:28, name:"DXY Dollar Index", source:"Yahoo Finance", cat:"intl", model:"Model 1", period:"2003-2026", file:"international/dxy_dollar_index.csv", link:"https://finance.yahoo.com/quote/DX-Y.NYB/", desc:"Indeks kekuatan Dollar AS, fitur eksogenous."},
-    {id:29, name:"Fed Funds Rate (%)", source:"FRED", cat:"intl", model:"Model 1", period:"2003-2026", file:"international/fed_funds_rate.csv", link:"https://fred.stlouisfed.org/series/DFF", desc:"Suku bunga acuan The Fed, fitur eksogenous."},
-    {id:30, name:"Gold Price (USD/oz)", source:"Yahoo Finance", cat:"intl", model:"Model 1", period:"2003-2026", file:"international/gold_price.csv", link:"https://finance.yahoo.com/quote/GC=F/", desc:"Harga emas bulanan, fitur safe haven."},
-    {id:31, name:"CPO Price (USD/mt)", source:"Yahoo Finance", cat:"intl", model:"Model 1", period:"2010-2026", file:"international/cpo_price.csv", link:"https://finance.yahoo.com/quote/CPO=F/", desc:"Harga Crude Palm Oil bulanan, fitur ekspor Indonesia."},
-    {id:32, name:"Inflasi Bulanan (Processed)", source:"Internal", cat:"domestic", model:"Model 1", period:"2005-2026", file:"processed/clean_inflasi_ts.csv", link:"", desc:"Dataset hasil preprocessing — gabungan 30 dataset domestik & internasional untuk Model 1."},
-    {id:33, name:"Daya Beli (Processed)", source:"Internal", cat:"provinsi", model:"Model 2", period:"2021-2025", file:"processed/clean_daya_beli.csv", link:"", desc:"Dataset hasil preprocessing aktif untuk Model 2 (38 prov x 5 tahun) dengan scope fitur yang saling mendukung."},
+    // ===== DOMESTIK NASIONAL (Model 1) =====
+    {id:1,  name:"Indeks Harga Konsumen (Umum)", source:"BPS", cat:"domestic", model:"Model 1", period:"2005-2023",
+     file:"Indeks Harga Konsumen (Umum)/Indeks Harga Konsumen 90 Kota (Umum), 2023.csv",
+     link:"https://www.bps.go.id/id/statistics-table/2/MiMy/indeks-harga-konsumen--umum-.html",
+     desc:"Indeks Harga Konsumen (IHK) umum nasional dari 90 kota. Fitur eksogenous untuk Model 1."},
+
+    {id:2,  name:"Inflasi Bulanan (M to M)", source:"BPS", cat:"domestic", model:"Model 1", period:"2005-2026",
+     file:"Inflasi Bulanan/Inflasi Bulanan (M-to-M), 2026.csv",
+     link:"https://www.bps.go.id/id/statistics-table/2/MSMy/inflasi--umum-.html",
+     desc:"Target prediksi LSTM. Data inflasi month-to-month dari seluruh kota BPS."},
+
+    {id:3,  name:"Inflasi Tahun Kalender (Y-to-D)", source:"BPS", cat:"domestic", model:"Model 1", period:"2009-2026",
+     file:"Inflasi Umum, Inti, Harga Diatur Pemerintah, dan Bergejolak Nasional (M-to-M dan Y-to-D)/Inflasi Umum, Inti, Harga Diatur Pemerintah, dan Bergejolak Nasional (M-to-M dan Y-to-D), 2009-2026.csv",
+     link:"https://www.bps.go.id/id/statistics-table/1/OTE0IzE=/tingkat-inflasi-harga-konsumen-nasional-tahun-kalender--y-to-d---sup-1--sup---2022-100-.html",
+     desc:"Referensi tingkat inflasi tahun kalender (basis 2022=100)."},
+
+    {id:4,  name:"BI Rate / Data Inflasi", source:"Bank Indonesia", cat:"domestic", model:"Model 1", period:"2005-2025",
+     file_format:"XLSX",
+     link:"https://www.bi.go.id/id/statistik/indikator/data-inflasi.aspx",
+     desc:"Suku bunga acuan Bank Indonesia. (File XLSX, lihat sumber)."},
+
+    {id:7,  name:"Data Historis USD/IDR", source:"Frankfurter / Yahoo", cat:"domestic", model:"Model 1", period:"2005-2026",
+     file:"Data Historis USD_IDR/USD_IDR Historical Data (2).csv",
+     link:"https://id.investing.com/currencies/usd-idr-historical-data",
+     desc:"Kurs USD/IDR historis bulanan. Fitur eksogenous Model 1 dan deflator untuk Model 2."},
+
+    {id:12, name:"Inflasi Komponen (Umum/Inti/Diatur/Bergejolak)", source:"BPS", cat:"domestic", model:"Model 1", period:"2009-2026",
+     file:"Inflasi Umum, Inti, Harga Diatur Pemerintah, dan Bergejolak Nasional (M-to-M dan Y-to-D)/Inflasi Umum, Inti, Harga Diatur Pemerintah, dan Bergejolak Nasional (M-to-M dan Y-to-D), 2009-2026.csv",
+     link:"https://www.bps.go.id/id/statistics-table/1/OTA4IzE=/inflasi-umum--inti--harga-yang-diatur-pemerintah--dan-barang-bergejolak-inflasi-indonesia--2009-2025.html",
+     desc:"Komponen inflasi: umum, inti, harga diatur pemerintah, dan bergejolak."},
+
+    {id:22, name:"Rata-rata Konsumsi Protein & Kalori", source:"BPS", cat:"domestic", model:"Model 2", period:"1990-2025",
+     file_format:"XLS",
+     link:"https://www.bps.go.id/id/statistics-table/1/MTk4NiMx/rata-rata-harian-konsumsi-protein-per-kapita-dan-konsumsi-kalori-per-kapita-tahun-1990-2023.html",
+     desc:"Rata-rata harian konsumsi protein (gram) dan kalori (kkal) per kapita nasional. (File XLS, lihat sumber)."},
+
+    // ===== PER PROVINSI (Model 2) =====
+    {id:5,  name:"Upah Minimum Provinsi (UMP)", source:"BPS Jateng", cat:"provinsi", model:"Model 2", period:"2021-2025",
+     file:"Upah Minimum Provinsi/Upah Minimum Provinsi (UMP) per Bulan Menurut Provinsi di Indonesia, 2025.csv",
+     link:"https://jateng.bps.go.id/id/statistics-table/2/MjgyNCMy/upah-minimum-provinsi-ump-per-bulan-menurut-provinsi-di-indonesia.html",
+     desc:"UMP per provinsi. Diolah menjadi Real_UMP (inflasi-adjusted) sebagai prediktor utama Model 2."},
+
+    {id:6,  name:"Rata-rata Pengeluaran per Kapita", source:"BPS", cat:"provinsi", model:"Model 2", period:"2017-2025",
+     file:"Rata-rata Pengeluaran per Kapita Sebulan Makanan dan Bukan Makanan/Rata-rata Pengeluaran per Kapita Sebulan Makanan dan Bukan Makanan di Daerah Perkotaan dan Perdesaan Menurut Provinsi (rupiah), 2025.csv",
+     link:"https://www.bps.go.id/id/statistics-table/3/V1ZKMWVrSTNOek5ZZUZOcVZEZGFValJvV0hWalFUMDkjMyMwMDAw/rata-rata-pengeluaran-per-kapita-sebulan-makanan-dan-bukan-makanan-di-daerah-perkotaan-dan-perdesaan-menurut-provinsi--rupiah-.html?year=2025",
+     desc:"Target Model 2. Rata-rata pengeluaran per kapita sebulan (makanan + bukan makanan) per provinsi."},
+
+    {id:8,  name:"TPT Semester & Provinsi", source:"Open Data Jabar", cat:"provinsi", model:"Model 2", period:"2020-2025",
+     file:"Tingkat Pengangguran Terbuka Berdasarkan Semester dan Provinsi di Indonesia/disnakertrans-od_21012_tingkat_pengangguran_terbuka_brdsrkn_semester_prov_v1_data.csv",
+     link:"https://opendata.jabarprov.go.id/id/dataset/tingkat-pengangguran-terbuka-berdasarkan-semester-dan-provinsi-di-indonesia",
+     desc:"Tingkat Pengangguran Terbuka per semester dan provinsi."},
+
+    {id:9,  name:"TPT & TPAK Menurut Provinsi", source:"BPS", cat:"provinsi", model:"Model 2", period:"2017-2025",
+     file:"Tingkat Pengangguran Terbuka (TPT) dan Tingkat Partisipasi Angkatan Kerja (TPAK) Menurut Provinsi/Tingkat Pengangguran Terbuka (TPT) dan Tingkat Partisipasi Angkatan Kerja (TPAK) Menurut Provinsi, 2023.csv",
+     link:"https://www.bps.go.id/id/statistics-table/3/V2pOVWJWcHJURGg0U2pONFJYaExhVXB0TUhacVFUMDkjMw%3D%3D/tingkat-pengangguran-terbuka--tpt--dan-tingkat-partisipasi-angkatan-kerja--tpak--menurut-provinsi--2019.html",
+     desc:"TPT dan TPAK menurut provinsi dari BPS. Prediktor utama Model 2."},
+
+    {id:10, name:"PDRB Per Kapita (Ribu Rupiah)", source:"BPS", cat:"provinsi", model:"Model 2", period:"2010-2025",
+     file:"Produk Domestik Regional Bruto Per Kapita (Ribu Rupiah)/[Seri 2010] Produk Domestik Regional Bruto Per Kapita, 2025.csv",
+     link:"https://www.bps.go.id/id/statistics-table/2/Mjg4IzI=/-seri-2010--produk-domestik-regional-bruto-per-kapita--ribu-rupiah-.html",
+     desc:"PDRB per kapita harga konstan (Seri 2010). Indikator pertumbuhan ekonomi daerah."},
+
+    {id:11, name:"Persentase Penduduk Miskin", source:"Open Data Jabar", cat:"provinsi", model:"Model 2", period:"2010-2024",
+     file:"Persentase Penduduk Miskin Berdasarkan Provinsi di Indonesia/bps-od_20948_persentase_penduduk_miskin__prov_di_indonesia_v2_data.csv",
+     link:"https://opendata.jabarprov.go.id/id/dataset/persentase-penduduk-miskin-berdasarkan-provinsi-di-indonesia",
+     desc:"Persentase penduduk miskin per provinsi."},
+
+    {id:17, name:"Gini Ratio Menurut Provinsi", source:"BPS", cat:"provinsi", model:"Model 2", period:"2010-2025",
+     file_format:"XLSX",
+     link:"https://www.bps.go.id/id/statistics-table/2/OTgjMg==/gini-rasio--maret-2023.html",
+     desc:"Rasio Gini (ketimpangan pendapatan) per provinsi. (File XLSX, lihat sumber)."},
+
+    {id:18, name:"Indeks Pembangunan Manusia (IPM)", source:"BPS", cat:"provinsi", model:"Model 2", period:"2010-2024",
+     file:"domestic_baru/IPM/[Metode Baru] Indeks Pembangunan Manusia (IPM) menurut Provinsi, 2024.csv",
+     link:"https://www.bps.go.id/id/statistics-table/2/NDk0IzI=/-metode-baru--indeks-pembangunan-manusia-menurut-provinsi.html",
+     desc:"IPM per provinsi (metode baru) dari BPS."},
+
+    {id:19, name:"Garis Kemiskinan (Rp/Kapita/Bulan)", source:"BPS", cat:"provinsi", model:"Model 2", period:"2013-2025",
+     file_format:"XLSX",
+     link:"https://www.bps.go.id/id/statistics-table/2/MTk1IzI=/poverty-line--rupiah-kapita-month--by-province-and-area.html",
+     desc:"Garis kemiskinan per provinsi (rata-rata perkotaan + perdesaan). (File XLSX, lihat sumber)."},
+
+    {id:20, name:"Jumlah Penduduk Menurut Provinsi", source:"BPS Sulut", cat:"provinsi", model:"Model 2", period:"2018-2024",
+     file:"domestic_baru/Jumlah_Penduduk/Jumlah Penduduk Menurut Provinsi di Indonesia, 2024.csv",
+     link:"https://sulut.bps.go.id/id/statistics-table/2/OTU4IzI=/jumlah-penduduk-menurut-provinsi-di-indonesia.html",
+     desc:"Jumlah penduduk (ribu jiwa) per provinsi. Digunakan untuk derivasi kepadatan penduduk."},
+
+    {id:21, name:"Akses Air Minum Layak", source:"BPS", cat:"provinsi", model:"Model 2", period:"2009-2025",
+     file_format:"XLSX",
+     link:"https://www.bps.go.id/id/statistics-table/2/ODU0IzI=/persentase-rumah-tangga-yang-memiliki-akses-terhadap-sumber-air-minum-layak-menurut-provinsi-dan-klasifikasi-desa--persen-.html",
+     desc:"Persentase rumah tangga dengan akses sumber air minum layak per provinsi. (File XLSX, lihat sumber)."},
+
+    {id:23, name:"Persentase Rumah Tangga Menurut Provinsi", source:"BPS", cat:"provinsi", model:"Model 2", period:"2009-2025",
+     file_format:"XLSX",
+     link:"https://www.bps.go.id/id/statistics-table/1/MTYwMyMx/persentase-rumah-tangga-menurut-provinsi--jenis-kelamin-kepala-rumah-tangga--dan-banyaknya-anggota-rumah-tangga--2009-2024.html",
+     desc:"Persentase rumah tangga menurut provinsi dan jenis kelamin KRT. (File XLSX, lihat sumber)."},
+
+    {id:24, name:"Kepemilikan Telepon Seluler", source:"BPS", cat:"provinsi", model:"Model 2", period:"2013-2024",
+     file:"Persentase Penduduk yang Memiliki Menguasai Telepon Seluler Menurut Provinsi dan Klasifikasi Daerah/Persentase Penduduk yang Memiliki_Menguasai Telepon Seluler Menurut Provinsi dan Klasifikasi Daerah, 2024.csv",
+     link:"https://www.bps.go.id/id/statistics-table/2/Mzk1IzI=/persentase-penduduk-yang-memiliki-menguasai-telepon-seluler-menurut-provinsi-dan-klasifikasi-daerah.html",
+     desc:"Persentase penduduk yang memiliki/menguasai telepon seluler per provinsi. Proksi akses teknologi & informasi."},
+
+    {id:25, name:"Rata-rata Lama Sekolah", source:"BPS", cat:"provinsi", model:"Model 2", period:"2010-2025",
+     file:"Rata-rata Lama Sekolah (Tahun)/[Metode Baru] Rata-rata Lama Sekolah, 2025.csv",
+     link:"https://www.bps.go.id/id/statistics-table/2/NDE1IzI=/-metode-baru-rata-rata-lama-sekolah.html",
+     desc:"Rata-rata lama sekolah (tahun) per provinsi — metode baru. Proksi kualitas SDM."},
+
+    {id:26, name:"Realisasi Investasi PMDN", source:"BPS", cat:"provinsi", model:"Model 2", period:"2010-2023",
+     file:"Realisasi Investasi Penanaman Modal Dalam Negeri Menurut Lokasi - Jumlah Investasi (Milyar Rupiah)/Realisasi Investasi Penanaman Modal Dalam Negeri Menurut Lokasi - Jumlah Investasi, 2023.csv",
+     link:"https://www.bps.go.id/id/statistics-table/2/NzkzIzI=/realisasi-investasi-penanaman-modal-dalam-negeri-menurut-provinsi--investasi-.html",
+     desc:"Realisasi investasi PMDN per provinsi (milyar rupiah)."},
+
+    {id:27, name:"Akses Sanitasi Layak", source:"BPS", cat:"provinsi", model:"Model 2", period:"2010-2025",
+     file:"Persentase Rumah Tangga yang Memiliki Akses terhadap Sanitasi Layak Menurut Provinsi dan Klasifikasi Desa (Persen)/Persentase Rumah Tangga yang Memiliki Akses terhadap Sanitasi Layak Menurut Provinsi dan Klasifikasi Desa, 2025.csv",
+     link:"https://www.bps.go.id/id/statistics-table/2/ODM0IzI=/persentase-rumah-tangga-menurut-provinsi--tipe-daerah-dan-sanitasi-layak.html",
+     desc:"Persentase rumah tangga dengan akses sanitasi layak per provinsi. Proksi kualitas infrastruktur dasar."},
+
+    {id:28, name:"Jumlah Kendaraan Bermotor", source:"BPS", cat:"provinsi", model:"Model 2", period:"2019-2024",
+     file:"Jumlah Kendaraan Bermotor Menurut Provinsi dan Jenis Kendaraan (unit)/Jumlah Kendaraan Bermotor Menurut Provinsi dan Jenis Kendaraan (unit), 2024.csv",
+     link:"https://www.bps.go.id/id/statistics-table/3/VjJ3NGRGa3dkRk5MTlU1bVNFOTVVbmQyVURSTVFUMDkjMw%3D%3D/jumlah-kendaraan-bermotor-menurut-provinsi-dan-jenis-kendaraan--unit---2023.html?year=2024",
+     desc:"Jumlah kendaraan bermotor (total) per provinsi. Proksi mobilitas ekonomi dan konsumsi BBM."},
+
+    {id:29, name:"NTP (Nilai Tukar Petani)", source:"BPS", cat:"provinsi", model:"Model 2", period:"2018-2025",
+     file_format:"XLSX",
+     link:"https://www.bps.go.id/id/statistics-table/2/MTc0MSMy/nilai-tukar-petani%E2%80%93november-2023.html",
+     desc:"Nilai Tukar Petani (NTP) per provinsi — rasio harga yang diterima vs dibayar petani. (File XLSX, lihat sumber)."},
+
+    {id:30, name:"Tenaga Kerja Formal", source:"BPS", cat:"provinsi", model:"Model 2", period:"2015-2025",
+     file:"Persentase Tenaga Kerja Formal Menurut Provinsi (Persen)/Persentase Tenaga Kerja Formal Menurut Provinsi, 2025.csv",
+     link:"https://www.bps.go.id/id/statistics-table/2/MTE2OCMy/percentage-of-formal-labor-by-province.html",
+     desc:"Persentase tenaga kerja formal per provinsi. Proksi kualitas pekerjaan dan perlindungan sosial."},
+
+    {id:31, name:"Indeks Kedalaman Kemiskinan (P1)", source:"BPS", cat:"provinsi", model:"Model 2", period:"2010-2024",
+     file_format:"XLSX",
+     link:"https://www.bps.go.id/id/statistics-table/2/NTAzIzI=/indeks-kedalaman-kemiskinan--p1--menurut-provinsi-dan-daerah.html",
+     desc:"Indeks Kedalaman Kemiskinan (P1) per provinsi — mengukur seberapa jauh rata-rata pengeluaran penduduk miskin dari garis kemiskinan. (File XLSX, lihat sumber)."},
+
+    // ===== INTERNASIONAL (Model 1) =====
+    {id:13, name:"Harga Minyak Mentah (WTI)", source:"IndexMundi", cat:"intl", model:"Model 1", period:"2001-2026",
+     file:"Harga Bulanan Minyak Mentah (minyak bumi) - Dolar AS per Barel/harga_bulanan_minyak_mentah_usd_per_barel.csv",
+     link:"https://www.indexmundi.com/commodities/?commodity=crude-oil&months=300",
+     desc:"Harga minyak WTI bulanan (USD/barel). Fitur eksogenous untuk Model 1."},
+
+    {id:14, name:"Geopolitical Risk Index", source:"policyuncertainty.com", cat:"intl", model:"Model 1", period:"1985-2026",
+     file:"international/data_gpr_export.csv",
+     link:"https://www.policyuncertainty.com/gpr.html",
+     desc:"Indeks risiko geopolitik global (GPR). Menangkap shock eksternal dalam prediksi inflasi."},
+
+    {id:15, name:"FAO Food Price Index", source:"FAO", cat:"intl", model:"Model 1", period:"1990-2026",
+     file_format:"XLSX",
+     link:"https://www.fao.org/worldfoodsituation/foodpricesindex/en/",
+     desc:"Indeks harga pangan global dari FAO. (File XLSX, lihat sumber)."},
+
+    {id:16, name:"Commodity Markets (26 komoditas)", source:"World Bank CMO", cat:"intl", model:"Model 1", period:"1960-2026",
+     file_format:"XLSX",
+     link:"https://www.worldbank.org/en/research/commodity-markets",
+     desc:"26 komoditas dari World Bank CMO: minyak, batu bara, CPO, pangan, logam, dll. (File XLSX, lihat sumber)."},
+
+    {id:32, name:"Crude Oil Brent (USD/Barel)", source:"Yahoo Finance", cat:"intl", model:"Model 1", period:"2007-2026",
+     file:"international/crude_oil_brent.csv",
+     link:"https://finance.yahoo.com/quote/BZ=F/",
+     desc:"Harga minyak Brent bulanan. Fitur SARIMAX exogenous."},
+
+    {id:33, name:"DXY Dollar Index", source:"Yahoo Finance", cat:"intl", model:"Model 1", period:"2003-2026",
+     file:"international/dxy_dollar_index.csv",
+     link:"https://finance.yahoo.com/quote/DX-Y.NYB/",
+     desc:"Indeks kekuatan Dollar AS. Fitur eksogenous."},
+
+    {id:34, name:"Fed Funds Rate (%)", source:"FRED", cat:"intl", model:"Model 1", period:"2003-2026",
+     file:"international/fed_funds_rate.csv",
+     link:"https://fred.stlouisfed.org/series/DFF",
+     desc:"Suku bunga acuan The Fed. Fitur eksogenous."},
+
+    {id:35, name:"Gold Price (USD/oz)", source:"Yahoo Finance", cat:"intl", model:"Model 1", period:"2003-2026",
+     file:"international/gold_price.csv",
+     link:"https://finance.yahoo.com/quote/GC=F/",
+     desc:"Harga emas bulanan. Fitur safe haven."},
+
+    {id:36, name:"CPO Price (USD/mt)", source:"Yahoo Finance", cat:"intl", model:"Model 1", period:"2010-2026",
+     file:"international/cpo_price.csv",
+     link:"https://finance.yahoo.com/quote/CPO=F/",
+     desc:"Harga Crude Palm Oil bulanan. Fitur ekspor Indonesia."},
+
+    // ===== WORLD BANK API (Model 2) =====
+    {id:37, name:"Inflasi Nasional (World Bank)", source:"World Bank", cat:"wb", model:"Model 2", period:"2010-2024",
+     file:"domestic_baru/WorldBank_Nasional/inflasi_worldbank.csv",
+     link:"https://data.worldbank.org",
+     desc:"Inflasi tahunan (%) dari World Bank. Indikator: FP.CPI.TOTL.ZG."},
+
+    {id:38, name:"GDP per Capita PPP", source:"World Bank", cat:"wb", model:"Model 2", period:"2010-2024",
+     file:"domestic_baru/WorldBank_Nasional/gdp_percapita_ppp.csv",
+     link:"https://data.worldbank.org",
+     desc:"GDP per kapita PPP (constant 2017 $). Indikator: NY.GDP.PCAP.PP.KD."},
+
+    {id:39, name:"Unemployment Rate (World Bank)", source:"World Bank", cat:"wb", model:"Model 2", period:"2010-2024",
+     file:"domestic_baru/WorldBank_Nasional/unemployment_worldbank.csv",
+     link:"https://data.worldbank.org",
+     desc:"Tingkat pengangguran nasional (%). Indikator: SL.UEM.TOTL.ZS."},
+
+    {id:40, name:"Poverty Headcount (World Bank)", source:"World Bank", cat:"wb", model:"Model 2", period:"2010-2024",
+     file:"domestic_baru/WorldBank_Nasional/poverty_headcount.csv",
+     link:"https://data.worldbank.org",
+     desc:"Persentase penduduk miskin nasional. Indikator: SI.POV.NAHC."},
+
+    // ===== PROCESSED DATASETS =====
+    {id:41, name:"Inflasi Bulanan (Processed)", source:"Internal", cat:"domestic", model:"Model 1", period:"2005-2026",
+     file:"processed/clean_inflasi_ts.csv",
+     link:"",
+     desc:"Dataset hasil preprocessing — gabungan 30+ dataset domestik & internasional untuk Model 1 (LSTM & SARIMAX)."},
+
+    {id:42, name:"Daya Beli (Processed)", source:"Internal", cat:"provinsi", model:"Model 2", period:"2021-2025",
+     file:"processed/clean_daya_beli.csv",
+     link:"",
+     desc:"Dataset hasil preprocessing aktif untuk Model 2 (38 provinsi x 5 tahun, 35 fitur). Digunakan Ridge Regression."},
 ];
 
 const grid = document.querySelector('.datasets-grid');
@@ -164,7 +371,7 @@ function renderCards(filter) {
         const card = document.createElement('div');
         card.className = 'dataset-card';
         card.setAttribute('data-aos', 'fade-up');
-        card.setAttribute('data-aos-delay', String(i * 50));
+        card.setAttribute('data-aos-delay', String(Math.min(i * 40, 400)));
         card.innerHTML = `
             <div class="ds-header">
                 <div class="ds-icon ${iconClass}"><i class="fas ${icon}"></i></div>
@@ -177,7 +384,7 @@ function renderCards(filter) {
                 </div>
             </div>
             <div class="ds-footer">
-                <a href="${d.link}" target="_blank" class="ds-link">Lihat Sumber <i class="fas fa-external-link-alt"></i></a>
+                ${d.link ? `<a href="${d.link}" target="_blank" class="ds-link" onclick="event.stopPropagation()">Lihat Sumber <i class="fas fa-external-link-alt"></i></a>` : '<span></span>'}
                 <button class="ds-chart-btn" onclick="event.stopPropagation(); openModal(${d.id})"><i class="fas fa-table"></i> Preview</button>
             </div>`;
         card.addEventListener('click', () => openModal(d.id));
@@ -212,9 +419,12 @@ function renderTable(data) {
     thead.innerHTML = '';
     tbody.innerHTML = '';
 
-    const columns = Array.isArray(data.columns) ? data.columns : (Array.isArray(data.rows) && data.rows.length > 0 && typeof data.rows[0] === 'object' ? Object.keys(data.rows[0]) : []);
+    const columns = Array.isArray(data.columns) ? data.columns
+        : (Array.isArray(data.rows) && data.rows.length > 0 && typeof data.rows[0] === 'object'
+            ? Object.keys(data.rows[0]) : []);
     const rows = Array.isArray(data.rows) ? data.rows : [];
-    const types = Array.isArray(data.types) ? data.types : (typeof data.types === 'object' && data.types !== null ? [] : []);
+    const types = Array.isArray(data.types) ? data.types
+        : (typeof data.types === 'object' && data.types !== null ? [] : []);
     const totalRows = typeof data.total_rows === 'number' ? data.total_rows : rows.length;
 
     // Header with type badges
@@ -222,18 +432,15 @@ function renderTable(data) {
     columns.forEach((col, i) => {
         const th = document.createElement('th');
         let typeLabel = '';
-        if (Array.isArray(types) && types[i]) {
-            typeLabel = types[i];
-        } else if (typeof data.types === 'object' && data.types !== null && data.types[col]) {
-            typeLabel = data.types[col];
-        }
+        if (Array.isArray(types) && types[i]) typeLabel = types[i];
+        else if (typeof data.types === 'object' && data.types !== null && data.types[col]) typeLabel = data.types[col];
         th.innerHTML = escapeHtml(String(col)) + (typeLabel ? ` <span class="type-badge">${escapeHtml(typeLabel)}</span>` : '');
         trHead.appendChild(th);
     });
     thead.appendChild(trHead);
 
-    // Rows (max 8)
-    const displayRows = rows.slice(0, 8);
+    // Rows (show up to 50 for full scroll experience)
+    const displayRows = rows.slice(0, 50);
     displayRows.forEach(row => {
         const tr = document.createElement('tr');
         if (Array.isArray(row)) {
@@ -266,36 +473,36 @@ function openModal(id) {
     document.getElementById('modalInfo').textContent = d.desc;
 
     const loader = document.getElementById('modalLoader');
-    const error = document.getElementById('modalError');
+    const error  = document.getElementById('modalError');
     const tableWrap = document.getElementById('modalTableWrap');
     const errorText = error.querySelector('p');
 
     loader.style.display = 'flex';
-    error.style.display = 'none';
+    error.style.display  = 'none';
     tableWrap.style.display = 'none';
 
     document.getElementById('dsModal').classList.add('active');
 
     if (d.file_format) {
         loader.style.display = 'none';
-        error.style.display = 'flex';
+        error.style.display  = 'flex';
         errorText.textContent = `File berformat ${d.file_format} — preview tabel tidak tersedia. Silakan unduh dari tombol "Lihat Sumber" untuk melihat data lengkap.`;
         return;
     }
 
     if (!d.file) {
         loader.style.display = 'none';
-        error.style.display = 'flex';
+        error.style.display  = 'flex';
         errorText.textContent = 'Dataset ini tidak memiliki preview (lihat sumber untuk data lengkap).';
         return;
     }
 
-    fetch(`/api/dataset-sample/?file=${encodeURIComponent(d.file)}`)
+    fetch(`/api/dataset-sample/?file=${encodeURIComponent(d.file)}&n=50`)
         .then(resp => resp.json().then(data => ({status: resp.status, data})))
         .then(({status, data}) => {
             loader.style.display = 'none';
             if (status !== 200) {
-                error.style.display = 'flex';
+                error.style.display  = 'flex';
                 errorText.textContent = data.error || 'Gagal memuat data preview.';
                 return;
             }
@@ -304,7 +511,7 @@ function openModal(id) {
         })
         .catch(err => {
             loader.style.display = 'none';
-            error.style.display = 'flex';
+            error.style.display  = 'flex';
             errorText.textContent = 'Gagal memuat data preview. Silakan coba lagi nanti.';
             console.error(err);
         });
@@ -316,6 +523,10 @@ function closeModal() {
 
 document.getElementById('dsModal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeModal();
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
 });
 </script>
 {% endblock %}

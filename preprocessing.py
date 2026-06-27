@@ -1,0 +1,2303 @@
+# -*- coding: utf-8 -*-
+"""
+============================================================================
+  PREPROCESSING PIPELINE (v4)
+  Proyek: Prediksi Inflasi dan Dampaknya terhadap Daya Beli
+  Kelompok E – Machine Learning SD-A1, Universitas Airlangga
+============================================================================
+
+Dataset yang digunakan (23 dataset) - Lihat README.md untuk detail:
+
+  --- LOKAL (BPS, Bank Indonesia) ---
+   1.  Indeks Harga Konsumen (Umum)                    – BPS, 2005–2023
+   2.  Inflasi Bulanan (M-to-M)                        – BPS, 2005–2026-05
+   3.  Tingkat Inflasi Tahun Kalender (Y-to-D)         – BPS, referensi
+   4.  BI Rate / Data Inflasi BI                       – Bank Indonesia
+   5.  Upah Minimum Provinsi (UMP)                     – BPS Jateng, 2021–2025
+   6.  Rata-rata Pengeluaran per Kapita                 – BPS, 2017–2025
+   7.  Data Historis USD/IDR                           – Investing.com, bulanan
+   8.  Tingkat Pengangguran Terbuka (Semester+Provinsi) – Open Data Jabar
+   9.  TPT & TPAK Menurut Provinsi                     – BPS, 2017–2025
+  10.  PDRB Per Kapita (Ribu Rupiah)                   – BPS, 2010–2025
+  11.  Persentase Penduduk Miskin per Provinsi          – BPS, 2010–2024
+  12.  Inflasi Umum, Inti, Harga Diatur, Bergejolak    – BPS, 2009–2026-05
+  13.  Harga Bulanan Minyak Mentah (USD/Barel)          – IndexMundi, 2001–2026-03
+  14.  USD/IDR Harian (Jan–Mei 2026)                   – Yahoo Finance
+
+  --- LOKAL - BARU v4 (Manual download dari BPS, Model 2) ---
+  17.  Gini Ratio per Provinsi                         – BPS, 2010–2024
+  18.  IPM per Provinsi                                – BPS, 2010–2024 ✅
+  19.  Garis Kemiskinan per Provinsi                   – BPS, 2010–2024
+  20.  Jumlah Penduduk per Provinsi                    – BPS, 2010–2024 ✅
+  -    Distribusi & Demografi Penduduk                 – BPS, 2010–2026 ✅
+  21.  Akses Air Minum Layak per Provinsi             – BPS, 2010–2024
+  22.  Konsumsi Protein per Kapita                     – BPS, 1990–2025
+  23.  Persentase Rumah Tangga per Provinsi            – BPS, 2009–2025
+
+  --- INTERNASIONAL (Model 1) ---
+  14.  Crude Oil Brent (USD/Barel)                      – Yahoo Finance, 2007–2026
+  15.  Indeks Dollar AS (DXY)                           – Yahoo Finance, 2003–2026
+  16.  The Fed Funds Rate (%)                           – FRED, 2003–2026
+  17.  Gold Price (USD/oz)                              – Yahoo Finance, 2003–2026
+  18.  CPO Price (USD/mt)                               – Yahoo Finance, 2010–2026
+  19.  Geopolitical Risk Index (GPR)                    – Caldara & Iacoviello
+  20.  FAO Food Price Index                              – FAO
+  21.  Rice Price Thailand 5% (CMO)                      – World Bank Pink Sheet
+
+  --- WORLD BANK API (Auto-download Nasional, Model 2) ---
+  -    PPP Conversion Factor                            – World Bank API
+  -    Inflasi (annual %)                               – World Bank API ✅
+  -    GDP per Capita (PPP)                              – World Bank API ✅
+  -    Unemployment (%)                                  – World Bank API ✅
+  -    Poverty Headcount (%)                             – World Bank API ✅
+
+  CATATAN:
+  - Dataset #15-#20 World Bank CMO (Palm Oil, Coal, Coffee, Wheat, dll) -
+    26 kolom ditambahkan ke clean_inflasi_ts.csv
+  - Dataset Inflasi per Kota dihapus (duplikat dengan #2)
+  - Dataset Kredit Konsumsi dihapus (tidak ada data publik)
+  - ✅ = sudah ada datanya | (kosong) = perlu download manual
+
+Output:
+  1. datasets/processed/clean_inflasi_ts.csv  → Model 1 (LSTM Forecasting)
+  2. datasets/processed/clean_daya_beli.csv   → Model 2 (Regresi Daya Beli)
+============================================================================
+"""
+
+import os
+import re
+import glob
+import warnings
+import numpy as np
+import pandas as pd
+
+warnings.filterwarnings("ignore")
+
+# ---------------------------------------------------------------------------
+# Path setup
+# ---------------------------------------------------------------------------
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+os.chdir(SCRIPT_DIR)
+
+BASE = "datasets"
+OUT_DIR = os.path.join(BASE, "processed")
+os.makedirs(OUT_DIR, exist_ok=True)
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+BULAN_MAP = {
+    "Januari": 1, "Februari": 2, "Maret": 3, "April": 4,
+    "Mei": 5, "Juni": 6, "Juli": 7, "Agustus": 8,
+    "September": 9, "Oktober": 10, "November": 11, "Desember": 12,
+}
+
+BULAN_MAP_EN = {
+    "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4,
+    "May": 5, "Jun": 6, "Jul": 7, "Aug": 8,
+    "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
+}
+
+
+def _parse_indo_date(s: str) -> pd.Timestamp:
+    """Parse tanggal format 'Januari 2024' atau 'Jan 2024'."""
+    try:
+        parts = str(s).strip().split()
+        if len(parts) == 2:
+            bulan = BULAN_MAP.get(parts[0]) or BULAN_MAP_EN.get(parts[0])
+            if bulan:
+                return pd.Timestamp(year=int(parts[1]), month=bulan, day=1)
+    except Exception:
+        pass
+    return pd.NaT
+
+
+def _to_float_id(val) -> float:
+    """Konversi angka format Indonesia (1.234,56 → 1234.56) ke float."""
+    try:
+        s = str(val).strip()
+        if s in ("-", "", "nan", "None", "-"):
+            return np.nan
+        s = s.replace("%", "").replace(" ", "").replace("(*)", "")
+        # Format Indonesia: titik = ribuan, koma = desimal
+        if "," in s and "." in s:
+            s = s.replace(".", "").replace(",", ".")
+        elif "," in s and "." not in s:
+            s = s.replace(",", ".")
+        elif "." in s and s.count(".") > 1:
+            s = s.replace(".", "")
+        return float(s)
+    except Exception:
+        return np.nan
+
+
+
+def _extract_year(filename: str):
+    """Ekstrak tahun dari nama file (misalnya '...2024.csv' → 2024)."""
+    try:
+        stem = os.path.splitext(os.path.basename(filename))[0]
+        # Handle '(1)' suffix: ambil token numerik 4-digit terakhir
+        for part in reversed(stem.replace("(", " ").replace(")", " ").split()):
+            if part.isdigit() and len(part) == 4:
+                return int(part)
+    except Exception:
+        pass
+    return None
+
+
+def _find_indonesia(df: pd.DataFrame, col: int = 0):
+    """Cari baris dengan nilai 'INDONESIA' di kolom tertentu."""
+    mask = df.iloc[:, col].astype(str).str.upper().str.strip() == "INDONESIA"
+    return df[mask].iloc[0] if mask.any() else None
+
+
+def _normalize_prov(name: str) -> str:
+    """Normalisasi nama provinsi ke Title Case standar."""
+    mapping = {
+        "DKI JAKARTA": "DKI Jakarta",
+        "DI YOGYAKARTA": "DI Yogyakarta",
+        "ACEH": "Aceh",
+        "KEP. BANGKA BELITUNG": "Kepulauan Bangka Belitung",
+        "KEP. RIAU": "Kepulauan Riau",
+        "KEPULAUAN BANGKA BELITUNG": "Kepulauan Bangka Belitung",
+        "KEPULAUAN RIAU": "Kepulauan Riau",
+    }
+    u = str(name).strip().upper()
+    if u in mapping:
+        return mapping[u]
+    return str(name).strip().title()
+
+
+# ===========================================================================
+# LOADERS
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# [1] Inflasi Bulanan (M-to-M) — backbone time series
+# ---------------------------------------------------------------------------
+def load_inflasi_mom() -> pd.DataFrame:
+    """Inflasi Bulanan M-to-M → Series bulanan level INDONESIA."""
+    print("  [1/13] Inflasi Bulanan M-to-M...", end=" ")
+    files = glob.glob(os.path.join(BASE, "Inflasi Bulanan", "*.csv"))
+    records = []
+    for f in sorted(files):
+        tahun = _extract_year(f)
+        if not tahun:
+            continue
+        try:
+            df = pd.read_csv(f, skiprows=3, header=0, dtype=str, on_bad_lines="skip")
+            df.rename(columns={df.columns[0]: "Kota"}, inplace=True)
+            row = _find_indonesia(df)
+            if row is None:
+                continue
+            for nama, angka in BULAN_MAP.items():
+                if nama in df.columns:
+                    val = _to_float_id(row[nama])
+                    if not np.isnan(val):
+                        records.append({"Tanggal": pd.Timestamp(tahun, angka, 1),
+                                        "Inflasi_MoM": val})
+        except Exception:
+            pass
+    df_out = (pd.DataFrame(records)
+              .sort_values("Tanggal")
+              .drop_duplicates("Tanggal")
+              .set_index("Tanggal"))
+    print(f"{len(df_out)} baris ({df_out.index.min().year}–{df_out.index.max().year})")
+    return df_out
+
+
+# ---------------------------------------------------------------------------
+# [2] Indeks Harga Konsumen (IHK) — level nasional
+# ---------------------------------------------------------------------------
+def load_ihk() -> pd.DataFrame:
+    """IHK Nasional (Umum) → Series bulanan."""
+    print("  [2/13] Indeks Harga Konsumen (IHK)...", end=" ")
+    files = glob.glob(os.path.join(BASE, "Indeks Harga Konsumen (Umum)", "*.csv"))
+    records = []
+    for f in sorted(files):
+        tahun = _extract_year(f)
+        if not tahun:
+            continue
+        try:
+            df = pd.read_csv(f, skiprows=3, header=0, dtype=str, on_bad_lines="skip")
+            df.rename(columns={df.columns[0]: "Kota"}, inplace=True)
+            row = _find_indonesia(df)
+            if row is None:
+                continue
+            for nama, angka in BULAN_MAP.items():
+                if nama in df.columns:
+                    val = _to_float_id(row[nama])
+                    if not np.isnan(val):
+                        records.append({"Tanggal": pd.Timestamp(tahun, angka, 1),
+                                        "IHK": val})
+        except Exception:
+            pass
+    df_out = (pd.DataFrame(records)
+              .sort_values("Tanggal")
+              .drop_duplicates("Tanggal")
+              .set_index("Tanggal"))
+    print(f"{len(df_out)} baris ({df_out.index.min().year}–{df_out.index.max().year})")
+    return df_out
+
+
+# ---------------------------------------------------------------------------
+# [4] BI Rate — suku bunga acuan
+# ---------------------------------------------------------------------------
+def load_bi_rate() -> pd.DataFrame:
+    """BI Rate / Data Inflasi BI → Series bulanan."""
+    print("  [4/13] BI Rate (Data Inflasi BI)...", end=" ")
+    path = os.path.join(BASE, "BI Rate (Data Inflasi)", "Data Inflasi.xlsx")
+    try:
+        df = pd.read_excel(path, skiprows=3, header=0)
+        if "Periode" not in df.columns:
+            df.columns = df.iloc[0]
+            df = df.iloc[1:].reset_index(drop=True)
+        df = df[["Periode", "Data Inflasi"]].dropna()
+        df["Data Inflasi"] = df["Data Inflasi"].apply(_to_float_id)
+        df["Tanggal"] = df["Periode"].apply(_parse_indo_date)
+        df = (df.dropna(subset=["Tanggal", "Data Inflasi"])
+              .sort_values("Tanggal")
+              .set_index("Tanggal")
+              [["Data Inflasi"]]
+              .rename(columns={"Data Inflasi": "BI_Rate"}))
+        print(f"{len(df)} baris ({df.index.min().year}–{df.index.max().year})")
+        return df
+    except Exception as e:
+        print(f"GAGAL – {e}")
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# [7] Kurs USD/IDR — bulanan
+# ---------------------------------------------------------------------------
+def load_usd_idr() -> pd.DataFrame:
+    """USD/IDR kurs bulanan dari Investing.com."""
+    print("  [7/13] Kurs USD/IDR (bulanan)...", end=" ")
+    folder = os.path.join(BASE, "Data Historis USD_IDR")
+    # Cari file CSV apapun dalam folder (nama bisa berubah)
+    candidates = glob.glob(os.path.join(folder, "*.csv"))
+    if not candidates:
+        print("GAGAL – tidak ada file CSV")
+        return pd.DataFrame()
+    path = candidates[0]
+    try:
+        lines = []
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith('"') and line.endswith('"'):
+                    line = line[1:-1]
+                line = line.replace('""', '"')
+                lines.append(line)
+        import io
+        df = pd.read_csv(io.StringIO("\n".join(lines)), dtype=str)
+        # Rename kolom pertama & kedua
+        df.rename(columns={df.columns[0]: "Tanggal", df.columns[1]: "Kurs"}, inplace=True)
+        # Parse tanggal format dd/mm/yyyy
+        df["Tanggal"] = pd.to_datetime(df["Tanggal"], format="%d/%m/%Y", errors="coerce")
+        df["Kurs"] = df["Kurs"].apply(_to_float_id)
+        df = df.dropna(subset=["Tanggal", "Kurs"]).set_index("Tanggal").sort_index()
+        # Data sudah bulanan - normalize ke awal bulan
+        df.index = df.index.normalize()  # set to start of day
+        # Resample ke frekuensi bulanan, ambil rata-rata
+        df_monthly = df[["Kurs"]].resample("MS").mean().rename(columns={"Kurs": "USD_IDR"})
+        print(f"{len(df_monthly)} bulan ({df_monthly.index.min().year}–{df_monthly.index.max().year})")
+        return df_monthly
+    except Exception as e:
+        print(f"GAGAL – {e}")
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# [12] Inflasi Umum, Inti, Harga Diatur, Bergejolak — komponen inflasi bulanan
+# ---------------------------------------------------------------------------
+def load_inflasi_komponen() -> pd.DataFrame:
+    """
+    Inflasi Umum, Inti, Harga Diatur Pemerintah, dan Bergejolak (M-to-M).
+    Format: hierarkis Tahun → Bulan dengan 4 kolom nilai.
+    """
+    print("  [12/13] Inflasi Komponen (Umum/Inti/Diatur/Bergejolak)...", end=" ")
+    folder = "Inflasi Umum, Inti, Harga Diatur Pemerintah, dan Bergejolak Nasional (M-to-M dan Y-to-D)"
+    files = glob.glob(os.path.join(BASE, folder, "*.csv"))
+    if not files:
+        print("GAGAL – file tidak ditemukan")
+        return pd.DataFrame()
+    records = []
+    for fpath in files:
+        try:
+            df = pd.read_csv(fpath, header=None, dtype=str, on_bad_lines="skip")
+            current_year = None
+            for _, row in df.iterrows():
+                col0 = str(row.iloc[0]).strip() if len(row) > 0 else ""
+                col1 = str(row.iloc[1]).strip() if len(row) > 1 else ""
+                # Baris tahun: kolom pertama adalah angka 4-digit, kolom kedua kosong/NaN
+                if col0.isdigit() and len(col0) == 4:
+                    current_year = int(col0)
+                    continue
+                # Baris bulan: kolom pertama kosong, kolom kedua adalah nama bulan Indonesia
+                if col0 in ("", "nan") and col1 in BULAN_MAP and current_year is not None:
+                    bulan = BULAN_MAP[col1]
+                    vals = []
+                    for i in [2, 3, 4, 5]:
+                        v = _to_float_id(row.iloc[i]) if len(row) > i else np.nan
+                        vals.append(v)
+                    records.append({
+                        "Tanggal": pd.Timestamp(current_year, bulan, 1),
+                        "Inflasi_Umum_MoM": vals[0],
+                        "Inflasi_Inti_MoM": vals[1],
+                        "Inflasi_HargaDiatur_MoM": vals[2],
+                        "Inflasi_Bergejolak_MoM": vals[3],
+                    })
+        except Exception as err:
+            print(f"  (parse error: {err})")
+            pass
+    if not records:
+        print("GAGAL – tidak ada data terparsing")
+        return pd.DataFrame()
+    df_out = (pd.DataFrame(records)
+              .sort_values("Tanggal")
+              .drop_duplicates("Tanggal")
+              .set_index("Tanggal"))
+    print(f"{len(df_out)} baris ({df_out.index.min().year}–{df_out.index.max().year})")
+    return df_out
+
+
+# ---------------------------------------------------------------------------
+# [13] Harga Minyak Mentah — bulanan USD/barel
+# ---------------------------------------------------------------------------
+def load_harga_minyak() -> pd.DataFrame:
+    """Harga Bulanan Minyak Mentah (USD/Barel) dari IndexMundi.
+
+    v3: Append data April–Mei 2026 dari Yahoo Finance (WTI) jika tersedia.
+    """
+    print("  [13/13] Harga Minyak Mentah (USD/Barel)...", end=" ")
+    folder = "Harga Bulanan Minyak Mentah (minyak bumi) - Dolar AS per Barel"
+    files = glob.glob(os.path.join(BASE, folder, "*.csv"))
+    if not files:
+        print("GAGAL – file tidak ditemukan")
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(files[0], dtype=str)
+        df["Tanggal"] = pd.to_datetime(df["date"], format="%Y-%m-%d", errors="coerce")
+        df["Harga_Minyak_USD"] = df["crude_oil_price_usd_per_barrel"].apply(_to_float_id)
+        df = (df.dropna(subset=["Tanggal", "Harga_Minyak_USD"])
+              .sort_values("Tanggal")
+              .set_index("Tanggal")
+              [["Harga_Minyak_USD"]])
+        # Resample ke awal bulan
+        df_monthly = df.resample("MS").mean()
+
+        # Append data April–Mei 2026 dari Yahoo Finance
+        wti_path = os.path.join(BASE, "international", "wti_apr_may_2026.csv")
+        if os.path.exists(wti_path):
+            wti_df = pd.read_csv(wti_path)
+            if "Tanggal" in wti_df.columns and "Harga" in wti_df.columns:
+                wti_df["Tanggal"] = pd.to_datetime(wti_df["Tanggal"], errors="coerce")
+                wti_df = wti_df.dropna(subset=["Tanggal"]).set_index("Tanggal")
+                wti_df = wti_df.rename(columns={"Harga": "Harga_Minyak_USD"})
+                # Concat (append)
+                df_monthly = pd.concat([df_monthly, wti_df[["Harga_Minyak_USD"]]])
+                df_monthly = df_monthly[~df_monthly.index.duplicated(keep="last")].sort_index()
+
+        print(f"{len(df_monthly)} bulan ({df_monthly.index.min().year}–{df_monthly.index.max().year})")
+        return df_monthly
+    except Exception as e:
+        print(f"GAGAL – {e}")
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# [14] USD/IDR Harian 2026 (Jan–Mei) — append dari Yahoo Finance
+# ---------------------------------------------------------------------------
+def load_usd_idr_2026() -> pd.DataFrame:
+    """USD/IDR harian 2026 (Jan–Mei) dari Yahoo Finance, di-resample ke bulanan."""
+    path = os.path.join(BASE, "international", "usd_idr_2026.csv")
+    if not os.path.exists(path):
+        print("  (file 2026 belum ada, skip)")
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(path)
+        # Rename Date ke Tanggal jika perlu
+        if "Tanggal" not in df.columns and "Date" in df.columns:
+            df = df.rename(columns={"Date": "Tanggal"})
+        if "Tanggal" not in df.columns:
+            print("  GAGAL – kolom 'Tanggal'/'Date' tidak ditemukan")
+            return pd.DataFrame()
+        df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce")
+        # Cari kolom harga
+        if "Close" in df.columns:
+            price_col = "Close"
+        elif "Terakhir" in df.columns:
+            price_col = "Terakhir"
+        else:
+            print("  GAGAL – kolom harga tidak ditemukan")
+            return pd.DataFrame()
+        df[price_col] = df[price_col].apply(_to_float_id)
+        df = df.dropna(subset=["Tanggal", price_col])
+        # Resample ke bulanan (ambil rata-rata)
+        df_monthly = (df.set_index("Tanggal")[[price_col]]
+                      .resample("MS").mean()
+                      .rename(columns={price_col: "USD_IDR"}))
+        print(f"{len(df_monthly)} bulan ({df_monthly.index.min().year}–{df_monthly.index.max().year})")
+        return df_monthly
+    except Exception as e:
+        print(f"GAGAL – {e}")
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# [15] Crude Oil Brent — dari Yahoo Finance (BZ=F)
+# ---------------------------------------------------------------------------
+def load_brent_oil() -> pd.DataFrame:
+    """Crude Oil Brent (USD/Barel) dari Yahoo Finance."""
+    path = os.path.join(BASE, "international", "crude_oil_brent.csv")
+    if not os.path.exists(path):
+        print("  (file belum ada, skip)")
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(path)
+        if "Tanggal" not in df.columns and "Date" in df.columns:
+            df = df.rename(columns={"Date": "Tanggal"})
+        df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce")
+        val_col = [c for c in df.columns if c != "Tanggal"][0]
+        df[val_col] = pd.to_numeric(df[val_col], errors="coerce")
+        df = df.dropna(subset=["Tanggal", val_col]).set_index("Tanggal")
+        df = df.rename(columns={val_col: "Brent_USD"})
+        print(f"{len(df)} bulan ({df.index.min().year}–{df.index.max().year})")
+        return df[["Brent_USD"]]
+    except Exception as e:
+        print(f"GAGAL – {e}")
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# [16] Indeks Dollar AS (DXY) — dari Yahoo Finance (DX-Y.NYB)
+# ---------------------------------------------------------------------------
+def load_dxy() -> pd.DataFrame:
+    """Indeks Dollar AS (DXY) dari Yahoo Finance."""
+    path = os.path.join(BASE, "international", "dxy_dollar_index.csv")
+    if not os.path.exists(path):
+        print("  (file belum ada, skip)")
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(path)
+        if "Tanggal" not in df.columns and "Date" in df.columns:
+            df = df.rename(columns={"Date": "Tanggal"})
+        df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce")
+        val_col = [c for c in df.columns if c != "Tanggal"][0]
+        df[val_col] = pd.to_numeric(df[val_col], errors="coerce")
+        df = df.dropna(subset=["Tanggal", val_col]).set_index("Tanggal")
+        df = df.rename(columns={val_col: "DXY"})
+        print(f"{len(df)} bulan ({df.index.min().year}–{df.index.max().year})")
+        return df[["DXY"]]
+    except Exception as e:
+        print(f"GAGAL – {e}")
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# [17] The Fed Funds Rate — dari FRED
+# ---------------------------------------------------------------------------
+def load_fed_rate() -> pd.DataFrame:
+    """The Fed Funds Rate (%) dari FRED."""
+    path = os.path.join(BASE, "international", "fed_funds_rate.csv")
+    if not os.path.exists(path):
+        print("  (file belum ada, skip)")
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(path)
+        df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce")
+        val_col = [c for c in df.columns if c != "Tanggal"][0]
+        df[val_col] = pd.to_numeric(df[val_col], errors="coerce")
+        df = df.dropna(subset=["Tanggal", val_col]).set_index("Tanggal")
+        df = df.rename(columns={val_col: "FedRate_Pct"})
+        print(f"{len(df)} bulan ({df.index.min().year}–{df.index.max().year})")
+        return df[["FedRate_Pct"]]
+    except Exception as e:
+        print(f"GAGAL – {e}")
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# [18] Gold Price — dari Yahoo Finance (GC=F)
+# ---------------------------------------------------------------------------
+def load_gold() -> pd.DataFrame:
+    """Gold Price (USD/oz) dari Yahoo Finance."""
+    path = os.path.join(BASE, "international", "gold_price.csv")
+    if not os.path.exists(path):
+        print("  (file belum ada, skip)")
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(path)
+        if "Tanggal" not in df.columns and "Date" in df.columns:
+            df = df.rename(columns={"Date": "Tanggal"})
+        df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce")
+        val_col = [c for c in df.columns if c != "Tanggal"][0]
+        df[val_col] = pd.to_numeric(df[val_col], errors="coerce")
+        df = df.dropna(subset=["Tanggal", val_col]).set_index("Tanggal")
+        df = df.rename(columns={val_col: "Gold_USD"})
+        print(f"{len(df)} bulan ({df.index.min().year}–{df.index.max().year})")
+        return df[["Gold_USD"]]
+    except Exception as e:
+        print(f"GAGAL – {e}")
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# [19] CPO Price (Crude Palm Oil) — dari Yahoo Finance (CPO=F)
+# ---------------------------------------------------------------------------
+def load_cpo() -> pd.DataFrame:
+    """CPO Price (USD/mt) dari Yahoo Finance."""
+    path = os.path.join(BASE, "international", "cpo_price.csv")
+    if not os.path.exists(path):
+        print("  (file belum ada, skip)")
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(path)
+        if "Tanggal" not in df.columns and "Date" in df.columns:
+            df = df.rename(columns={"Date": "Tanggal"})
+        df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce")
+        val_col = [c for c in df.columns if c != "Tanggal"][0]
+        df[val_col] = pd.to_numeric(df[val_col], errors="coerce")
+        df = df.dropna(subset=["Tanggal", val_col]).set_index("Tanggal")
+        df = df.rename(columns={val_col: "CPO_USD"})
+        print(f"{len(df)} bulan ({df.index.min().year}–{df.index.max().year})")
+        return df[["CPO_USD"]]
+    except Exception as e:
+        print(f"GAGAL – {e}")
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# [20] Geopolitical Risk Index (GPR) — Caldara & Iacoviello
+# ---------------------------------------------------------------------------
+def load_gpr() -> pd.DataFrame:
+    """Geopolitical Risk Index (GPR) dari Caldara & Iacoviello (policyuncertainty.com).
+    File CSV dari: https://www.policyuncertainty.com/gpr.html
+    Format: kolom 'month' (m/d/yyyy) dan 'GPR' (nilai indeks).
+    """
+    path = os.path.join(BASE, "international", "data_gpr_export.csv")
+    if not os.path.exists(path):
+        # Fallback ke template
+        path = os.path.join(BASE, "international", "gpr_index.csv")
+        if not os.path.exists(path):
+            print("  (file belum ada, skip)")
+            return pd.DataFrame()
+    try:
+        df = pd.read_csv(path)
+        # Cari kolom tanggal dan GPR
+        date_col = None
+        for c in ["month", "Month", "Date", "Tanggal"]:
+            if c in df.columns:
+                date_col = c
+                break
+        gpr_col = None
+        for c in ["GPR", "gpr", "GPR_Index"]:
+            if c in df.columns:
+                gpr_col = c
+                break
+        if date_col is None or gpr_col is None:
+            print(f"  WARNING – kolom tanggal/GPR tidak ditemukan ({list(df.columns)[:5]})")
+            return pd.DataFrame()
+        df = df[[date_col, gpr_col]].copy()
+        df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+        df[gpr_col] = pd.to_numeric(df[gpr_col], errors="coerce")
+        df = df.dropna(subset=[date_col, gpr_col])
+        # Set tanggal ke awal bulan
+        df[date_col] = df[date_col].dt.to_period("M").dt.to_timestamp()
+        df = df.drop_duplicates(subset=[date_col], keep="last")
+        df = df.set_index(date_col)
+        df = df.rename(columns={gpr_col: "GPR_Index"})
+        print(f"{len(df)} bulan ({df.index.min().year}–{df.index.max().year})")
+        return df[["GPR_Index"]]
+    except Exception as e:
+        print(f"GAGAL – {e}")
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# [21] FAO Food Price Index — dari FAO
+# ---------------------------------------------------------------------------
+def load_fao_fpi() -> pd.DataFrame:
+    """FAO Food Price Index dari FAO (ffpi-data-*.xlsx).
+    File Excel dari: https://www.fao.org/worldfoodsituation/foodpricesindex/en/
+    Format: header di row 2, data mulai row 4, kolom 0=Tanggal, kolom 1=Food Price Index.
+    """
+    path = os.path.join(BASE, "international", "ffpi-data-2026-05.xlsx")
+    if not os.path.exists(path):
+        # Fallback ke template CSV
+        path = os.path.join(BASE, "international", "fao_food_price_index.csv")
+        if not os.path.exists(path):
+            print("  (file belum ada, skip)")
+            return pd.DataFrame()
+    try:
+        if path.endswith(".xlsx"):
+            df = pd.read_excel(path, header=2)
+        else:
+            df = pd.read_csv(path, comment="#")
+        # Cari kolom Tanggal dan Food Price Index
+        date_col = None
+        for c in ["Date", "Tanggal", "date", "Month"]:
+            if c in df.columns:
+                date_col = c
+                break
+        fpi_col = None
+        for c in ["Food Price Index", "FAO_Food_Price_Index", "FPI", "Index"]:
+            if c in df.columns:
+                fpi_col = c
+                break
+        if date_col is None or fpi_col is None:
+            print(f"  WARNING – kolom Tanggal/FPI tidak ditemukan ({list(df.columns)[:5]})")
+            return pd.DataFrame()
+        df = df[[date_col, fpi_col]].copy()
+        df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+        df[fpi_col] = pd.to_numeric(df[fpi_col], errors="coerce")
+        df = df.dropna(subset=[date_col, fpi_col])
+        # Set tanggal ke awal bulan
+        df[date_col] = df[date_col].dt.to_period("M").dt.to_timestamp()
+        df = df.drop_duplicates(subset=[date_col], keep="last")
+        df = df.set_index(date_col)
+        df = df.rename(columns={fpi_col: "FAO_FPI"})
+        print(f"{len(df)} bulan ({df.index.min().year}–{df.index.max().year})")
+        return df[["FAO_FPI"]]
+    except Exception as e:
+        print(f"GAGAL – {e}")
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# [22] Semua Komoditas World Bank CMO (Palm Oil, Coal, Coffee, Wheat, dll)
+# ---------------------------------------------------------------------------
+# Mapping: nama kolom di CMO -> nama kolom di output
+CMO_COLUMNS = {
+    "Palm oil":                   "CMO_PalmOil_USD",
+    "Coal, Australian":           "CMO_Coal_AU_USD",
+    "Coal, South African **":     "CMO_Coal_SA_USD",
+    "Coffee, Robusta":            "CMO_Coffee_Robusta_USD",
+    "Coffee, Arabica":            "CMO_Coffee_Arabica_USD",
+    "Wheat, US SRW":              "CMO_Wheat_SRW_USD",
+    "Wheat, US HRW":              "CMO_Wheat_HRW_USD",
+    "Soybeans":                   "CMO_Soybeans_USD",
+    "Soybean oil":                "CMO_SoybeanOil_USD",
+    "Sugar, world":               "CMO_Sugar_USD",
+    "Rubber, TSR20 **":           "CMO_Rubber_TSR20_USD",
+    "Rubber, RSS3":               "CMO_Rubber_RSS3_USD",
+    "Cotton, A Index":            "CMO_Cotton_USD",
+    "Rice, Thai 5% ":             "CMO_Rice_Thailand_USD",
+    "Coconut oil":                "CMO_CoconutOil_USD",
+    "Groundnuts":                 "CMO_Groundnuts_USD",
+    "Fish meal":                  "CMO_FishMeal_USD",
+    "Maize":                      "CMO_Maize_USD",
+    "Tin":                        "CMO_Tin_USD",
+    "Nickel":                     "CMO_Nickel_USD",
+    "Copper":                     "CMO_Copper_USD",
+    "Aluminum":                   "CMO_Aluminum_USD",
+    "Iron ore, cfr spot":         "CMO_IronOre_USD",
+    "Natural gas, US":            "CMO_NatGas_USD",
+    "Natural gas, Europe":        "CMO_NatGas_EU_USD",
+    "Liquefied natural gas, Japan": "CMO_LNG_Japan_USD",
+}
+
+
+def load_cmo_commodities() -> pd.DataFrame:
+    """Load semua komoditas World Bank CMO (Commodity Markets) sekaligus.
+    File: CMO-Historical-Data-Monthly.xlsx
+    Sheet: Monthly Prices
+    Format tanggal: '1960M01', dst.
+    Output: DataFrame dengan kolom per komoditas (USD/mt atau satuan World Bank).
+    """
+    path = os.path.join(BASE, "international", "CMO-Historical-Data-Monthly.xlsx")
+    if not os.path.exists(path):
+        print("  (file CMO belum ada, skip)")
+        return pd.DataFrame()
+    try:
+        df = pd.read_excel(path, sheet_name="Monthly Prices", header=4)
+        date_col = df.columns[0]
+
+        # Ambil kolom tanggal
+        result = pd.DataFrame()
+        result["Tanggal"] = pd.to_datetime(df[date_col], format="%YM%m", errors="coerce")
+        result = result.dropna(subset=["Tanggal"]).set_index("Tanggal").sort_index()
+
+        loaded = 0
+        for cmo_col, out_col in CMO_COLUMNS.items():
+            if cmo_col in df.columns:
+                vals = pd.to_numeric(df[cmo_col].values, errors="coerce")
+                # Buat series dengan tanggal yang sama
+                series = pd.Series(vals[:len(result)], index=result.index, name=out_col)
+                result[out_col] = series
+                loaded += 1
+
+        result = result.dropna(how="all")
+        # Forward fill & backward fill untuk setiap kolom
+        for col in result.columns:
+            result[col] = result[col].ffill().bfill()
+
+        print(f"{loaded} komoditas, {len(result)} bulan ({result.index.min().year}–{result.index.max().year})")
+        return result
+    except Exception as e:
+        print(f"GAGAL – {e}")
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# [5] Upah Minimum Provinsi (UMP)
+# ---------------------------------------------------------------------------
+def load_ump() -> pd.DataFrame:
+    """UMP per Provinsi per Tahun."""
+    print("  [5/13] Upah Minimum Provinsi (UMP)...", end=" ")
+    files = glob.glob(os.path.join(BASE, "Upah Minimum Provinsi", "*.csv"))
+    records = []
+    for f in sorted(files):
+        tahun = _extract_year(f)
+        if not tahun:
+            continue
+        try:
+            df = pd.read_csv(f, skiprows=2, header=0, dtype=str, on_bad_lines="skip")
+            df.rename(columns={df.columns[0]: "Provinsi", df.columns[1]: "UMP"}, inplace=True)
+            df = df.dropna(subset=["Provinsi", "UMP"])
+            df = df[~df["Provinsi"].str.strip().str.upper()
+                    .isin(["PROVINSI", "INDONESIA", "NASIONAL", ""])]
+            df["Provinsi"] = df["Provinsi"].apply(_normalize_prov)
+            df["UMP"] = df["UMP"].apply(_to_float_id)
+            df["Tahun"] = tahun
+            records.append(df[["Provinsi", "UMP", "Tahun"]].dropna())
+        except Exception:
+            pass
+    df_out = pd.concat(records, ignore_index=True) if records else pd.DataFrame()
+    print(f"{len(df_out)} baris, {df_out['Tahun'].nunique()} tahun")
+    return df_out
+
+
+# ---------------------------------------------------------------------------
+# [6] Rata-rata Pengeluaran per Kapita
+# ---------------------------------------------------------------------------
+def load_pengeluaran() -> pd.DataFrame:
+    """Rata-rata Pengeluaran per Kapita per Provinsi per Tahun."""
+    print("  [6/13] Pengeluaran per Kapita...", end=" ")
+    folder = "Rata-rata Pengeluaran per Kapita Sebulan Makanan dan Bukan Makanan"
+    files = glob.glob(os.path.join(BASE, folder, "*.csv"))
+    records = []
+    for f in sorted(files):
+        tahun = _extract_year(f)
+        if not tahun:
+            continue
+        try:
+            df = pd.read_csv(f, header=0, dtype=str, on_bad_lines="skip")
+            df.rename(columns={df.columns[0]: "Provinsi"}, inplace=True)
+            df = df[~df["Provinsi"].str.strip().str.upper()
+                    .isin(["PROVINSI", "", "INDONESIA"])]
+            df["Provinsi"] = df["Provinsi"].apply(_normalize_prov)
+            if len(df.columns) >= 4:
+                col_makanan = df.columns[1]
+                col_bukan = df.columns[2]
+                col_total = df.columns[3]
+                df["Pengeluaran_Makanan"] = df[col_makanan].apply(_to_float_id)
+                df["Pengeluaran_Bukan_Makanan"] = df[col_bukan].apply(_to_float_id)
+                df["Total_Pengeluaran"] = df[col_total].apply(_to_float_id)
+            elif len(df.columns) == 3:
+                # Beberapa file mungkin hanya punya 3 kolom
+                col_makanan = df.columns[1]
+                col_bukan = df.columns[2]
+                df["Pengeluaran_Makanan"] = df[col_makanan].apply(_to_float_id)
+                df["Pengeluaran_Bukan_Makanan"] = df[col_bukan].apply(_to_float_id)
+                df["Total_Pengeluaran"] = df["Pengeluaran_Makanan"] + df["Pengeluaran_Bukan_Makanan"]
+            df["Tahun"] = tahun
+            records.append(df[["Provinsi", "Pengeluaran_Makanan",
+                                "Pengeluaran_Bukan_Makanan", "Total_Pengeluaran",
+                                "Tahun"]].dropna())
+        except Exception:
+            pass
+    df_out = pd.concat(records, ignore_index=True) if records else pd.DataFrame()
+    print(f"{len(df_out)} baris, {df_out['Tahun'].nunique()} tahun")
+    return df_out
+
+
+# ---------------------------------------------------------------------------
+# [8] Tingkat Pengangguran Terbuka — Semester & Provinsi (Open Data Jabar)
+# ---------------------------------------------------------------------------
+def load_pengangguran_semester() -> pd.DataFrame:
+    """TPT per Provinsi per Tahun (rata-rata Feb+Agustus) — Open Data Jabar."""
+    print("  [8/13] TPT Semester & Provinsi (Open Data Jabar)...", end=" ")
+    path = os.path.join(
+        BASE,
+        "Tingkat Pengangguran Terbuka Berdasarkan Semester dan Provinsi di Indonesia",
+        "disnakertrans-od_21012_tingkat_pengangguran_terbuka_brdsrkn_semester_prov_v1_data.csv"
+    )
+    try:
+        df = pd.read_csv(path, dtype=str)
+        df["tingkat_pengangguran_terbuka"] = df["tingkat_pengangguran_terbuka"].apply(_to_float_id)
+        df["tahun"] = df["tahun"].apply(lambda x: int(x) if str(x).isdigit() else np.nan)
+        df["nama_provinsi"] = df["nama_provinsi"].apply(_normalize_prov)
+        agg = (df.dropna(subset=["tingkat_pengangguran_terbuka", "tahun"])
+               .groupby(["nama_provinsi", "tahun"])["tingkat_pengangguran_terbuka"]
+               .mean()
+               .reset_index()
+               .rename(columns={"nama_provinsi": "Provinsi",
+                                "tahun": "Tahun",
+                                "tingkat_pengangguran_terbuka": "TPT"}))
+        agg["Tahun"] = agg["Tahun"].astype(int)
+        print(f"{len(agg)} baris, {agg['Tahun'].nunique()} tahun "
+              f"({int(agg['Tahun'].min())}–{int(agg['Tahun'].max())})")
+        return agg
+    except Exception as e:
+        print(f"GAGAL – {e}")
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# [9] TPT & TPAK Menurut Provinsi — BPS per tahun
+# ---------------------------------------------------------------------------
+def load_tpt_tpak() -> pd.DataFrame:
+    """
+    TPT & TPAK per Provinsi per Tahun dari BPS.
+    Rata-rata Feb + Agustus untuk TPT; rata-rata Feb + Agustus untuk TPAK.
+    """
+    print("  [9/13] TPT & TPAK Menurut Provinsi (BPS)...", end=" ")
+    folder = "Tingkat Pengangguran Terbuka (TPT) dan Tingkat Partisipasi Angkatan Kerja (TPAK) Menurut Provinsi"
+    files = glob.glob(os.path.join(BASE, folder, "*.csv"))
+    records = []
+    for f in sorted(files):
+        tahun = _extract_year(f)
+        if not tahun:
+            continue
+        try:
+            df = pd.read_csv(f, header=0, dtype=str, on_bad_lines="skip")
+            df.rename(columns={df.columns[0]: "Provinsi"}, inplace=True)
+            # Filter baris meta/catatan
+            df = df[~df["Provinsi"].str.strip().str.upper()
+                    .isin(["PROVINSI", "", "INDONESIA", "CATATAN"])]
+            df = df[~df["Provinsi"].str.startswith("<sup", na=False)]
+            df = df[~df["Provinsi"].str.startswith("Catatan", na=False)]
+            df["Provinsi"] = df["Provinsi"].apply(_normalize_prov)
+            # Cari kolom TPT dan TPAK
+            cols = df.columns.tolist()
+            tpt_cols = [c for c in cols if "TPT" in str(c).upper() or "Pengangguran" in str(c)]
+            tpak_cols = [c for c in cols if "TPAK" in str(c).upper() or "Partisipasi" in str(c)]
+            # Hitung rata-rata dari semua kolom TPT dan TPAK
+            for _, row in df.iterrows():
+                prov = row["Provinsi"]
+                tpt_vals = [_to_float_id(row[c]) for c in tpt_cols if c in row]
+                tpak_vals = [_to_float_id(row[c]) for c in tpak_cols if c in row]
+                tpt_mean = np.nanmean(tpt_vals) if tpt_vals else np.nan
+                tpak_mean = np.nanmean(tpak_vals) if tpak_vals else np.nan
+                if not np.isnan(tpt_mean) or not np.isnan(tpak_mean):
+                    records.append({
+                        "Provinsi": prov,
+                        "Tahun": tahun,
+                        "TPT_BPS": round(tpt_mean, 4) if not np.isnan(tpt_mean) else np.nan,
+                        "TPAK_BPS": round(tpak_mean, 4) if not np.isnan(tpak_mean) else np.nan,
+                    })
+        except Exception:
+            pass
+    df_out = (pd.DataFrame(records)
+              .dropna(subset=["Provinsi"])
+              .drop_duplicates(["Provinsi", "Tahun"])
+              .sort_values(["Tahun", "Provinsi"])
+              .reset_index(drop=True))
+    if not df_out.empty:
+        print(f"{len(df_out)} baris, {df_out['Tahun'].nunique()} tahun "
+              f"({int(df_out['Tahun'].min())}–{int(df_out['Tahun'].max())})")
+    else:
+        print("GAGAL – tidak ada data")
+    return df_out
+
+
+# ---------------------------------------------------------------------------
+# [10] PDRB Per Kapita (Ribu Rupiah) — BPS per tahun
+# ---------------------------------------------------------------------------
+def load_pdrb() -> pd.DataFrame:
+    """PDRB Per Kapita per Provinsi per Tahun (Harga Berlaku & Konstan)."""
+    print("  [10/13] PDRB Per Kapita (Ribu Rp)...", end=" ")
+    folder = "Produk Domestik Regional Bruto Per Kapita (Ribu Rupiah)"
+    files = glob.glob(os.path.join(BASE, folder, "*.csv"))
+    records = []
+    for f in sorted(files):
+        tahun = _extract_year(f)
+        if not tahun:
+            continue
+        try:
+            df = pd.read_csv(f, skiprows=4, header=None, dtype=str, on_bad_lines="skip")
+            if df.empty or len(df.columns) < 2:
+                continue
+            df.rename(columns={df.columns[0]: "Provinsi"}, inplace=True)
+            df = df[df["Provinsi"].str.strip() != ""]
+            df = df[~df["Provinsi"].str.strip().str.upper()
+                    .isin(["INDONESIA", ""])]
+            df["Provinsi"] = df["Provinsi"].apply(_normalize_prov)
+            # Kolom 1 = Harga Berlaku, Kolom 2 = Harga Konstan 2010
+            col_berlaku = df.columns[1] if len(df.columns) > 1 else None
+            col_konstan = df.columns[2] if len(df.columns) > 2 else None
+            for _, row in df.iterrows():
+                prov = row["Provinsi"]
+                berlaku = _to_float_id(row[col_berlaku]) if col_berlaku else np.nan
+                konstan = _to_float_id(row[col_konstan]) if col_konstan else np.nan
+                if not np.isnan(berlaku) or not np.isnan(konstan):
+                    records.append({
+                        "Provinsi": prov,
+                        "Tahun": tahun,
+                        "PDRB_HargaBerlaku": berlaku,
+                        "PDRB_HargaKonstan": konstan,
+                    })
+        except Exception:
+            pass
+    df_out = (pd.DataFrame(records)
+              .dropna(subset=["Provinsi"])
+              .drop_duplicates(["Provinsi", "Tahun"])
+              .sort_values(["Tahun", "Provinsi"])
+              .reset_index(drop=True))
+    if not df_out.empty:
+        print(f"{len(df_out)} baris, {df_out['Tahun'].nunique()} tahun "
+              f"({int(df_out['Tahun'].min())}–{int(df_out['Tahun'].max())})")
+    else:
+        print("GAGAL – tidak ada data")
+    return df_out
+
+
+# ---------------------------------------------------------------------------
+# [11] Persentase Penduduk Miskin per Provinsi
+# ---------------------------------------------------------------------------
+def load_penduduk_miskin() -> pd.DataFrame:
+    """Persentase Penduduk Miskin per Provinsi per Tahun."""
+    print("  [11/13] Persentase Penduduk Miskin...", end=" ")
+    folder = "Persentase Penduduk Miskin Berdasarkan Provinsi di Indonesia"
+    files = glob.glob(os.path.join(BASE, folder, "*_data.csv"))
+    if not files:
+        files = glob.glob(os.path.join(BASE, folder, "*.csv"))
+    if not files:
+        print("GAGAL – file tidak ditemukan")
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(files[0], dtype=str)
+        # Kolom: id, kode_provinsi, nama_provinsi, persentase_penduduk_miskin, satuan, tahun
+        df["persentase_penduduk_miskin"] = df["persentase_penduduk_miskin"].apply(_to_float_id)
+        df["tahun"] = df["tahun"].apply(lambda x: int(x) if str(x).strip().isdigit() else np.nan)
+        df["nama_provinsi"] = df["nama_provinsi"].apply(_normalize_prov)
+        # Filter nilai 0.0 yang mengindikasikan data tidak tersedia (provinsi baru)
+        df = df[df["persentase_penduduk_miskin"] > 0]
+        df_out = (df.dropna(subset=["persentase_penduduk_miskin", "tahun"])
+                  .rename(columns={
+                      "nama_provinsi": "Provinsi",
+                      "tahun": "Tahun",
+                      "persentase_penduduk_miskin": "Pct_Penduduk_Miskin"
+                  })
+                  [["Provinsi", "Tahun", "Pct_Penduduk_Miskin"]]
+                  .drop_duplicates(["Provinsi", "Tahun"])
+                  .sort_values(["Tahun", "Provinsi"])
+                  .reset_index(drop=True))
+        df_out["Tahun"] = df_out["Tahun"].astype(int)
+        print(f"{len(df_out)} baris, {df_out['Tahun'].nunique()} tahun "
+              f"({int(df_out['Tahun'].min())}–{int(df_out['Tahun'].max())})")
+        return df_out
+    except Exception as e:
+        print(f"GAGAL – {e}")
+        return pd.DataFrame()
+
+
+# ===========================================================================
+# [15-24] DOMESTIC BARU v4 - Data per Provinsi (Manual Download)
+# ===========================================================================
+
+def _load_prov_year_csv(folder_name, file_name, value_col, expected_cols=None):
+    """Helper: Load CSV dengan kolom Provinsi, Tahun, value_col.
+    Jika file belum ada, return DataFrame kosong (akan di-skip).
+    """
+    folder = os.path.join(BASE, "domestic_baru", folder_name)
+    file_path = os.path.join(folder, file_name)
+    if not os.path.exists(file_path):
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(file_path, dtype=str)
+        # Validasi kolom minimum
+        if "Provinsi" not in df.columns and "nama_provinsi" in df.columns:
+            df.rename(columns={"nama_provinsi": "Provinsi"}, inplace=True)
+        if "Tahun" not in df.columns and "tahun" in df.columns:
+            df.rename(columns={"tahun": "Tahun"}, inplace=True)
+        if "Provinsi" not in df.columns or "Tahun" not in df.columns:
+            print(f"   WARNING – {file_name}: kolom Provinsi/Tahun tidak ada")
+            return pd.DataFrame()
+        # Bersihkan nama provinsi
+        df["Provinsi"] = df["Provinsi"].apply(_normalize_prov)
+        # Parse tahun
+        df["Tahun"] = pd.to_numeric(df["Tahun"], errors="coerce")
+        # Parse value column
+        if value_col in df.columns:
+            df[value_col] = df[value_col].apply(_to_float_id)
+        else:
+            # Cari kolom numerik lain
+            numeric_cols = [c for c in df.columns if c not in ["Provinsi", "Tahun", "id", "kode_provinsi"]]
+            if numeric_cols:
+                df[value_col] = df[numeric_cols[0]].apply(_to_float_id)
+        df = df.dropna(subset=["Provinsi", "Tahun", value_col])
+        return df[["Provinsi", "Tahun", value_col]].drop_duplicates(["Provinsi", "Tahun"])
+    except Exception as e:
+        print(f"   ERROR – {file_name}: {e}")
+        return pd.DataFrame()
+
+
+def load_gini_rasio() -> pd.DataFrame:
+    """[17] Gini Ratio per Provinsi (BPS xlsx).
+    Format: 4 header rows, data from row 4.
+    Cols: 38 Provinsi | Perkotaan Sem1 | Perkotaan Sem2 | Perkotaan Tahunan
+          | Perdesaan Sem1 | Perdesaan Sem2 | Perdesaan Tahunan
+          | Total Sem1 | Total Sem2 | Total Tahunan
+    Kita ambil rata-rata Sem1+Sem2 dari Total (Perkotaan+Perdesaan).
+    """
+    print("  [17/33] Gini Ratio per Provinsi...", end=" ")
+    folder = os.path.join(BASE, "domestic_baru", "Gini_Rasio")
+    if not os.path.exists(folder):
+        print("GAGAL – folder tidak ada")
+        return pd.DataFrame()
+    frames = []
+    for fn in os.listdir(folder):
+        if not fn.lower().endswith((".xlsx", ".xls")):
+            continue
+        tahun_match = re.search(r"(\d{4})", fn)
+        if not tahun_match:
+            continue
+        tahun = int(tahun_match.group(1))
+        try:
+            df = pd.read_excel(os.path.join(folder, fn), header=None, skiprows=4)
+            # kolom 0=Provinsi, 7=Total Sem1, 8=Total Sem2
+            df = df.iloc[:, [0, 7, 8]].copy()
+            df.columns = ["Provinsi", "Sem1", "Sem2"]
+            df = df.dropna(subset=["Provinsi"])
+            df["Provinsi"] = df["Provinsi"].astype(str).apply(_normalize_prov)
+            df = df[df["Provinsi"] != "Indonesia"]
+            df["Sem1"] = df["Sem1"].apply(_to_float_id)
+            df["Sem2"] = df["Sem2"].apply(_to_float_id)
+            # Rata-rata semester, fallback ke salah satu jika satu NaN
+            df["Gini_Rasio"] = df[["Sem1", "Sem2"]].mean(axis=1)
+            df = df.dropna(subset=["Gini_Rasio"])
+            df["Tahun"] = tahun
+            frames.append(df[["Provinsi", "Tahun", "Gini_Rasio"]])
+        except Exception as e:
+            print(f"\n   WARNING – {fn}: {e}")
+    if not frames:
+        print("0 baris")
+        return pd.DataFrame()
+    result = pd.concat(frames, ignore_index=True)
+    result = result.drop_duplicates(["Provinsi", "Tahun"])
+    print(f"{len(result)} baris ({result['Tahun'].min()}-{result['Tahun'].max()})")
+    return result
+
+
+def load_ipm() -> pd.DataFrame:
+    """[16] IPM per Provinsi (BPS).
+    Format file: 38 Provinsi, [header], [tahun], [data...]
+    User scrape manual dari https://www.bps.go.id/id/statistics-table/2/NDk0IzI=/
+    """
+    print("  [16/33] IPM per Provinsi...", end=" ")
+    folder = os.path.join(BASE, "domestic_baru", "IPM")
+    if not os.path.exists(folder):
+        print("GAGAL – folder tidak ada")
+        return pd.DataFrame()
+    frames = []
+    for fn in os.listdir(folder):
+        if not fn.lower().endswith(".csv"):
+            continue
+        tahun_match = re.search(r"(\d{4})", fn)
+        if not tahun_match:
+            continue
+        tahun = int(tahun_match.group(1))
+        try:
+            df = pd.read_csv(os.path.join(folder, fn), skiprows=3, header=None, dtype=str)
+            # Ambil kolom 0 (Provinsi) dan kolom 1 (IPM)
+            df = df.iloc[:, :2]
+            df.columns = ["Provinsi", "IPM"]
+            df = df.dropna(subset=["Provinsi", "IPM"])
+            df["Provinsi"] = df["Provinsi"].apply(_normalize_prov)
+            df["IPM"] = df["IPM"].apply(_to_float_id)
+            df["Tahun"] = tahun
+            df = df.dropna(subset=["IPM"])
+            # Filter "INDONESIA" (nasional) jika ada
+            df = df[df["Provinsi"] != "Indonesia"]
+            frames.append(df[["Provinsi", "Tahun", "IPM"]])
+        except Exception as e:
+            print(f"\n   WARNING – {fn}: {e}")
+    if not frames:
+        print("0 baris")
+        return pd.DataFrame()
+    result = pd.concat(frames, ignore_index=True)
+    result = result.drop_duplicates(["Provinsi", "Tahun"])
+    print(f"{len(result)} baris ({result['Tahun'].min()}-{result['Tahun'].max()})")
+    return result
+
+
+def load_garis_kemiskinan() -> pd.DataFrame:
+    """[19] Garis Kemiskinan per Provinsi (BPS xlsx, Rp/kapita/bulan).
+    Format: 4 header rows, data from row 4.
+    Cols: 38 Provinsi | Perkotaan Sem1 | Perkotaan Sem2 | Perkotaan Tahunan
+          | Perdesaan Sem1 | Perdesaan Sem2 | Perdesaan Tahunan
+    Kita ambil rata-rata Sem1+Sem2 dari Perkotaan dan Perdesaan.
+    """
+    print("  [19/33] Garis Kemiskinan per Provinsi...", end=" ")
+    folder = os.path.join(BASE, "domestic_baru", "Garis_Kemiskinan")
+    if not os.path.exists(folder):
+        print("GAGAL – folder tidak ada")
+        return pd.DataFrame()
+    frames = []
+    for fn in os.listdir(folder):
+        if not fn.lower().endswith((".xlsx", ".xls")):
+            continue
+        tahun_match = re.search(r"(\d{4})", fn)
+        if not tahun_match:
+            continue
+        tahun = int(tahun_match.group(1))
+        try:
+            df = pd.read_excel(os.path.join(folder, fn), header=None, skiprows=4)
+            # kolom 0=Provinsi, 1=Kota Sem1, 2=Kota Sem2, 4=Desa Sem1, 5=Desa Sem2
+            df = df.iloc[:, [0, 1, 2, 4, 5]].copy()
+            df.columns = ["Provinsi", "Kota_S1", "Kota_S2", "Desa_S1", "Desa_S2"]
+            df = df.dropna(subset=["Provinsi"])
+            df["Provinsi"] = df["Provinsi"].astype(str).apply(_normalize_prov)
+            df = df[df["Provinsi"] != "Indonesia"]
+            for c in ["Kota_S1", "Kota_S2", "Desa_S1", "Desa_S2"]:
+                df[c] = df[c].apply(_to_float_id)
+            # Rata-rata semua semester (kota + desa)
+            df["Garis_Kemiskinan"] = df[["Kota_S1", "Kota_S2", "Desa_S1", "Desa_S2"]].mean(axis=1)
+            df = df.dropna(subset=["Garis_Kemiskinan"])
+            df["Tahun"] = tahun
+            frames.append(df[["Provinsi", "Tahun", "Garis_Kemiskinan"]])
+        except Exception as e:
+            print(f"\n   WARNING – {fn}: {e}")
+    if not frames:
+        print("0 baris")
+        return pd.DataFrame()
+    result = pd.concat(frames, ignore_index=True)
+    result = result.drop_duplicates(["Provinsi", "Tahun"])
+    print(f"{len(result)} baris ({result['Tahun'].min()}-{result['Tahun'].max()})")
+    return result
+
+
+def load_jumlah_penduduk() -> pd.DataFrame:
+    """[18] Jumlah Penduduk per Provinsi (BPS, hasil proyeksi sensus, Ribu Jiwa).
+    User scrape manual dari https://sulut.bps.go.id/id/statistics-table/2/OTU4IzI=/...
+    """
+    print("  [18/33] Jumlah Penduduk per Provinsi...", end=" ")
+    folder = os.path.join(BASE, "domestic_baru", "Jumlah_Penduduk")
+    if not os.path.exists(folder):
+        print("GAGAL – folder tidak ada")
+        return pd.DataFrame()
+    frames = []
+    for fn in os.listdir(folder):
+        if not fn.lower().endswith(".csv"):
+            continue
+        tahun_match = re.search(r"(\d{4})", fn)
+        if not tahun_match:
+            continue
+        tahun = int(tahun_match.group(1))
+        try:
+            df = pd.read_csv(os.path.join(folder, fn), skiprows=3, header=None, dtype=str)
+            df = df.iloc[:, :2]
+            df.columns = ["Provinsi", "Jumlah_Penduduk"]
+            df = df.dropna(subset=["Provinsi", "Jumlah_Penduduk"])
+            df["Provinsi"] = df["Provinsi"].apply(_normalize_prov)
+            df["Jumlah_Penduduk"] = df["Jumlah_Penduduk"].apply(_to_float_id)
+            df["Tahun"] = tahun
+            df = df.dropna(subset=["Jumlah_Penduduk"])
+            df = df[df["Provinsi"] != "Indonesia"]
+            frames.append(df[["Provinsi", "Tahun", "Jumlah_Penduduk"]])
+        except Exception as e:
+            print(f"\n   WARNING – {fn}: {e}")
+    if not frames:
+        print("0 baris")
+        return pd.DataFrame()
+    result = pd.concat(frames, ignore_index=True)
+    result = result.drop_duplicates(["Provinsi", "Tahun"])
+    print(f"{len(result)} baris ({result['Tahun'].min()}-{result['Tahun'].max()})")
+    return result
+
+
+def load_urbanisasi() -> pd.DataFrame:
+    """[19] Distribusi & Demografi Penduduk per Provinsi (BPS).
+    File ini berisi: Jumlah Penduduk, Laju Pertumbuhan, % Distribusi (share of total),
+    Kepadatan, dan Rasio Jenis Kelamin.
+    """
+    print("  [19/33] Distribusi Penduduk per Provinsi...", end=" ")
+    folder = os.path.join(BASE, "domestic_baru", "Tingkat_Urbanisasi")
+    if not os.path.exists(folder):
+        print("GAGAL – folder tidak ada")
+        return pd.DataFrame()
+    frames = []
+    for fn in os.listdir(folder):
+        if not fn.lower().endswith(".csv"):
+            continue
+        tahun_match = re.search(r"(\d{4})", fn)
+        if not tahun_match:
+            continue
+        tahun = int(tahun_match.group(1))
+        try:
+            df = pd.read_csv(os.path.join(folder, fn), header=0, dtype=str)
+            if "Provinsi" not in df.columns:
+                continue
+            
+            # Find columns dynamically based on keywords
+            pct_col = None
+            density_col = None
+            sex_ratio_col = None
+            growth_col = None
+            for c in df.columns:
+                cl = c.lower()
+                if "persentase penduduk" in cl:
+                    pct_col = c
+                elif "kepadatan" in cl:
+                    density_col = c
+                elif "rasio jenis" in cl:
+                    sex_ratio_col = c
+                elif "laju pertumbuhan" in cl:
+                    growth_col = c
+                    
+            cols_to_keep = ["Provinsi"]
+            rename_map = {}
+            if pct_col:
+                cols_to_keep.append(pct_col)
+                rename_map[pct_col] = "Pct_Populasi"
+            if density_col:
+                cols_to_keep.append(density_col)
+                rename_map[density_col] = "Kepadatan_Penduduk"
+            if sex_ratio_col:
+                cols_to_keep.append(sex_ratio_col)
+                rename_map[sex_ratio_col] = "Rasio_Jenis_Kelamin"
+            if growth_col:
+                cols_to_keep.append(growth_col)
+                rename_map[growth_col] = "Laju_Pertumbuhan_Penduduk"
+                
+            df = df[cols_to_keep].copy()
+            df.rename(columns=rename_map, inplace=True)
+            df["Provinsi"] = df["Provinsi"].apply(_normalize_prov)
+            
+            for col in rename_map.values():
+                df[col] = df[col].apply(_to_float_id)
+                
+            df["Tahun"] = tahun
+            df = df.dropna(subset=[c for c in rename_map.values() if c != "Laju_Pertumbuhan_Penduduk"], how="all")
+            df = df[df["Provinsi"] != "Indonesia"]
+            
+            selected_cols = ["Provinsi", "Tahun"] + list(rename_map.values())
+            frames.append(df[selected_cols])
+        except Exception as e:
+            print(f"\n   WARNING – {fn}: {e}")
+    if not frames:
+        print("0 baris")
+        return pd.DataFrame()
+    result = pd.concat(frames, ignore_index=True)
+    result = result.drop_duplicates(["Provinsi", "Tahun"])
+    print(f"{len(result)} baris ({result['Tahun'].min()}-{result['Tahun'].max()})")
+    return result
+
+
+def load_akses_air() -> pd.DataFrame:
+    """[21] Akses Air Minum Layak per Provinsi (BPS xlsx, %).
+    Format: 3 header rows, data from row 3.
+    Cols: 38 Provinsi | Perkotaan | Perdesaan | Perkotaan+Perdesaan
+    Kita ambil kolom Total (Perkotaan+Perdesaan).
+    """
+    print("  [21/33] Akses Air Bersih per Provinsi...", end=" ")
+    folder = os.path.join(BASE, "domestic_baru", "Akses_Air_Bersih")
+    if not os.path.exists(folder):
+        print("GAGAL – folder tidak ada")
+        return pd.DataFrame()
+    frames = []
+    for fn in os.listdir(folder):
+        if not fn.lower().endswith((".xlsx", ".xls")):
+            continue
+        tahun_match = re.search(r"(\d{4})", fn)
+        if not tahun_match:
+            continue
+        tahun = int(tahun_match.group(1))
+        try:
+            df = pd.read_excel(os.path.join(folder, fn), header=None, skiprows=3)
+            # kolom 0=Provinsi, 3=Total (Perkotaan+Perdesaan)
+            df = df.iloc[:, [0, 3]].copy()
+            df.columns = ["Provinsi", "Pct_Akses_Air_Bersih"]
+            df = df.dropna(subset=["Provinsi"])
+            df["Provinsi"] = df["Provinsi"].astype(str).apply(_normalize_prov)
+            df = df[df["Provinsi"] != "Indonesia"]
+            df["Pct_Akses_Air_Bersih"] = df["Pct_Akses_Air_Bersih"].apply(_to_float_id)
+            df = df.dropna(subset=["Pct_Akses_Air_Bersih"])
+            df["Tahun"] = tahun
+            frames.append(df[["Provinsi", "Tahun", "Pct_Akses_Air_Bersih"]])
+        except Exception as e:
+            print(f"\n   WARNING – {fn}: {e}")
+    if not frames:
+        print("0 baris")
+        return pd.DataFrame()
+    result = pd.concat(frames, ignore_index=True)
+    result = result.drop_duplicates(["Provinsi", "Tahun"])
+    print(f"{len(result)} baris ({result['Tahun'].min()}-{result['Tahun'].max()})")
+    return result
+
+
+def load_konsumsi_protein() -> pd.DataFrame:
+    """[22] Konsumsi Protein dan Kalori per Kapita Nasional (BPS xls, gram/hari & kkal/hari).
+    Data nasional (bukan per-provinsi), years as columns (1990-2025).
+    """
+    print("  [22/33] Konsumsi Protein & Kalori per Kapita (nasional)...", end=" ")
+    folder = os.path.join(BASE, "domestic_baru", "Konsumsi_Protein")
+    if not os.path.exists(folder):
+        print("GAGAL – folder tidak ada")
+        return pd.DataFrame()
+    frames = []
+    for fn in os.listdir(folder):
+        if not fn.lower().endswith((".xls", ".xlsx")):
+            continue
+        try:
+            df = pd.read_excel(os.path.join(folder, fn), header=None, skiprows=1)
+            # Find protein row (termasuk estimasi)
+            protein_row = None
+            kalori_row = None
+            for idx in range(2, len(df)):
+                cell = str(df.iloc[idx, 0]) if pd.notna(df.iloc[idx, 0]) else ""
+                if "protein" in cell.lower() and "termasuk estimasi" in cell.lower():
+                    protein_row = idx
+                elif "kalori" in cell.lower() and "termasuk estimasi" in cell.lower():
+                    kalori_row = idx
+            
+            if protein_row is None or kalori_row is None:
+                # Fallback to simple matching
+                for idx in range(2, len(df)):
+                    cell = str(df.iloc[idx, 0]) if pd.notna(df.iloc[idx, 0]) else ""
+                    if "protein" in cell.lower() and protein_row is None:
+                        protein_row = idx
+                    elif "kalori" in cell.lower() and kalori_row is None:
+                        kalori_row = idx
+                        
+            if protein_row is None or kalori_row is None:
+                continue
+                
+            prot_data = df.iloc[protein_row].tolist()
+            cal_data = df.iloc[kalori_row].tolist()
+            year_row = df.iloc[1].tolist()
+            
+            for col_idx in range(2, len(prot_data)):
+                val_prot = prot_data[col_idx]
+                val_cal = cal_data[col_idx]
+                tahun_raw = year_row[col_idx]
+                if pd.isna(tahun_raw):
+                    continue
+                try:
+                    tahun = int(float(tahun_raw))
+                    prot_val = _to_float_id(str(val_prot))
+                    cal_val = _to_float_id(str(val_cal))
+                    frames.append({
+                        "Tahun": tahun,
+                        "Protein_gram_per_hari": prot_val,
+                        "Kalori_kkal_per_hari": cal_val
+                    })
+                except:
+                    pass
+        except Exception as e:
+            print(f"\n   WARNING – {fn}: {e}")
+    if not frames:
+        print("0 baris")
+        return pd.DataFrame()
+    result = pd.DataFrame(frames)
+    result = result.dropna(subset=["Tahun"])
+    result = result.drop_duplicates(["Tahun"]).sort_values("Tahun").reset_index(drop=True)
+    print(f"{len(result)} baris ({result['Tahun'].min()}-{result['Tahun'].max()})")
+    return result
+
+
+def load_jumlah_rumah_tangga() -> pd.DataFrame:
+    """[24] Jumlah Rumah Tangga per Provinsi (BPS)."""
+    print("  [24/33] Jumlah Rumah Tangga per Provinsi...", end=" ")
+    folder = os.path.join(BASE, "domestic_baru", "Jumlah_Rumah_Tangga")
+    if not os.path.exists(folder):
+        print("GAGAL – folder tidak ada")
+        return pd.DataFrame()
+    frames = []
+    for fn in os.listdir(folder):
+        if not fn.lower().endswith(".csv"):
+            continue
+        tahun_match = re.search(r"(\d{4})", fn)
+        if not tahun_match:
+            continue
+        tahun = int(tahun_match.group(1))
+        try:
+            df = pd.read_csv(os.path.join(folder, fn), header=0, dtype=str)
+            if "Provinsi" not in df.columns:
+                continue
+            rt_col = None
+            for c in df.columns:
+                cl = c.lower()
+                if "rumah tangga" in cl or ("rt" in cl and "kabupaten" not in cl and "kota" not in cl):
+                    rt_col = c
+                    break
+            if rt_col is None:
+                continue
+            df = df[["Provinsi", rt_col]].copy()
+            df.columns = ["Provinsi", "Jumlah_Rumah_Tangga"]
+            df = df.dropna(subset=["Provinsi", "Jumlah_Rumah_Tangga"])
+            df["Provinsi"] = df["Provinsi"].apply(_normalize_prov)
+            df["Jumlah_Rumah_Tangga"] = df["Jumlah_Rumah_Tangga"].apply(_to_float_id)
+            df["Tahun"] = tahun
+            df = df.dropna(subset=["Jumlah_Rumah_Tangga"])
+            df = df[df["Provinsi"] != "Indonesia"]
+            frames.append(df[["Provinsi", "Tahun", "Jumlah_Rumah_Tangga"]])
+        except Exception as e:
+            print(f"\n   WARNING – {fn}: {e}")
+    if not frames:
+        print("0 baris")
+        return pd.DataFrame()
+    result = pd.concat(frames, ignore_index=True)
+    result = result.drop_duplicates(["Provinsi", "Tahun"])
+    print(f"{len(result)} baris")
+    return result
+def load_kredit_konsumsi() -> pd.DataFrame:
+    """[21] Kredit Konsumsi per Provinsi - DIHAPUS dari v4.
+    Data tidak tersedia dari sumber publik, fitur ini dihilangkan.
+    """
+    print("  [21/33] Kredit Konsumsi per Provinsi... (SKIP - tidak ada data)")
+    return pd.DataFrame()
+
+
+def load_inflasi_kota_bulanan() -> pd.DataFrame:
+    """[20] Inflasi per Kota - DIHAPUS dari v4.
+    Inflasi per kota sudah terwakili oleh dataset 'Inflasi Bulanan M-to-M'
+    (data BPS #2) yang memuat seluruh kota, sehingga loader ini tidak
+    diperlukan dan dihilangkan untuk menghindari duplikasi.
+    """
+    print("  [20/33] Inflasi per Kota (bulanan)... (SKIP - duplikat dengan dataset #2)")
+    return pd.DataFrame()
+
+
+def load_indeks_kedalaman_kemiskinan() -> pd.DataFrame:
+    """Indeks Kedalaman Kemiskinan (P1) per Provinsi."""
+    print("  [+] Indeks Kedalaman Kemiskinan (P1)...", end=" ")
+    folder = "Indeks Kedalaman Kemiskinan (P1) Menurut Provinsi dan Daerah (Persen)"
+    files = glob.glob(os.path.join(BASE, folder, "*.xlsx"))
+    records = []
+    for f in sorted(files):
+        tahun = _extract_year(f)
+        if not tahun: continue
+        try:
+            df = pd.read_excel(f, header=None)
+            data = df.iloc[5:].copy()
+            data.rename(columns={data.columns[0]: "Provinsi"}, inplace=True)
+            data = data[~data["Provinsi"].astype(str).str.strip().str.upper().isin(["PROVINSI", "", "INDONESIA"])]
+            
+            val_sem1 = data.iloc[:, 7].apply(_to_float_id)
+            val_sem2 = data.iloc[:, 8].apply(_to_float_id)
+            val_tahunan = data.iloc[:, 9].apply(_to_float_id)
+            
+            final_val = val_tahunan.fillna((val_sem1 + val_sem2) / 2)
+            
+            data["Indeks_Kedalaman_Kemiskinan"] = final_val
+            data["Tahun"] = tahun
+            data["Provinsi"] = data["Provinsi"].apply(_normalize_prov)
+            records.append(data[["Provinsi", "Tahun", "Indeks_Kedalaman_Kemiskinan"]].dropna())
+        except Exception:
+            pass
+    df_out = pd.concat(records, ignore_index=True) if records else pd.DataFrame()
+    print(f"{len(df_out)} baris, {df_out['Tahun'].nunique() if not df_out.empty else 0} tahun")
+    return df_out
+
+def load_jumlah_kendaraan() -> pd.DataFrame:
+    """Jumlah Kendaraan Bermotor per Provinsi."""
+    print("  [+] Jumlah Kendaraan Bermotor...", end=" ")
+    folder = "Jumlah Kendaraan Bermotor Menurut Provinsi dan Jenis Kendaraan (unit)"
+    files = glob.glob(os.path.join(BASE, folder, "*.csv"))
+    records = []
+    for f in sorted(files):
+        tahun = _extract_year(f)
+        if not tahun: continue
+        try:
+            df = pd.read_csv(f, encoding='utf-8-sig')
+            df.rename(columns={df.columns[0]: "Provinsi", df.columns[-1]: "Total_Kendaraan"}, inplace=True)
+            df = df[~df["Provinsi"].astype(str).str.strip().str.upper().isin(["PROVINSI", "", "INDONESIA", "TOTAL"])]
+            df["Total_Kendaraan"] = df["Total_Kendaraan"].apply(_to_float_id)
+            df["Tahun"] = tahun
+            df["Provinsi"] = df["Provinsi"].apply(_normalize_prov)
+            records.append(df[["Provinsi", "Tahun", "Total_Kendaraan"]].dropna())
+        except Exception:
+            pass
+    df_out = pd.concat(records, ignore_index=True) if records else pd.DataFrame()
+    print(f"{len(df_out)} baris, {df_out['Tahun'].nunique() if not df_out.empty else 0} tahun")
+    return df_out
+
+def load_ntp() -> pd.DataFrame:
+    """Nilai Tukar Petani (NTP) per Provinsi."""
+    print("  [+] NTP (Nilai Tukar Petani)...", end=" ")
+    folder = "NTP (Nilai Tukar Petani) menurut Provinsi"
+    files = glob.glob(os.path.join(BASE, folder, "*.xlsx"))
+    records = []
+    for f in sorted(files):
+        tahun = _extract_year(f)
+        if not tahun: continue
+        try:
+            df = pd.read_excel(f, header=None)
+            data = df.iloc[5:].copy()
+            data.rename(columns={data.columns[0]: "Provinsi"}, inplace=True)
+            data = data[~data["Provinsi"].astype(str).str.strip().str.upper().isin(["PROVINSI", "", "INDONESIA"])]
+            
+            monthly_vals = data.iloc[:, 1:13].map(_to_float_id)
+            mean_val = monthly_vals.mean(axis=1)
+            
+            data["NTP"] = mean_val
+            data["Tahun"] = tahun
+            data["Provinsi"] = data["Provinsi"].apply(_normalize_prov)
+            records.append(data[["Provinsi", "Tahun", "NTP"]].dropna())
+        except Exception:
+            pass
+    df_out = pd.concat(records, ignore_index=True) if records else pd.DataFrame()
+    print(f"{len(df_out)} baris, {df_out['Tahun'].nunique() if not df_out.empty else 0} tahun")
+    return df_out
+
+def load_kepemilikan_hp() -> pd.DataFrame:
+    """Persentase Penduduk yang Menguasai Telepon Seluler per Provinsi."""
+    print("  [+] Persentase Kepemilikan Telepon Seluler...", end=" ")
+    folder = "Persentase Penduduk yang Memiliki Menguasai Telepon Seluler Menurut Provinsi dan Klasifikasi Daerah"
+    files = glob.glob(os.path.join(BASE, folder, "*.csv"))
+    records = []
+    for f in sorted(files):
+        tahun = _extract_year(f)
+        if not tahun: continue
+        try:
+            df = pd.read_csv(f, encoding='utf-8-sig', header=None)
+            data = df.iloc[4:].copy()
+            data.rename(columns={data.columns[0]: "Provinsi", data.columns[3]: "Pct_Kepemilikan_HP"}, inplace=True)
+            data = data[~data["Provinsi"].astype(str).str.strip().str.upper().isin(["PROVINSI", "", "INDONESIA"])]
+            data["Pct_Kepemilikan_HP"] = data["Pct_Kepemilikan_HP"].apply(_to_float_id)
+            data["Tahun"] = tahun
+            data["Provinsi"] = data["Provinsi"].apply(_normalize_prov)
+            records.append(data[["Provinsi", "Tahun", "Pct_Kepemilikan_HP"]].dropna())
+        except Exception:
+            pass
+    df_out = pd.concat(records, ignore_index=True) if records else pd.DataFrame()
+    print(f"{len(df_out)} baris, {df_out['Tahun'].nunique() if not df_out.empty else 0} tahun")
+    return df_out
+
+def load_sanitasi_layak() -> pd.DataFrame:
+    """Persentase Rumah Tangga yang Memiliki Akses terhadap Sanitasi Layak per Provinsi."""
+    print("  [+] Persentase Rumah Tangga Akses Sanitasi Layak...", end=" ")
+    folder = "Persentase Rumah Tangga yang Memiliki Akses terhadap Sanitasi Layak Menurut Provinsi dan Klasifikasi Desa (Persen)"
+    files = glob.glob(os.path.join(BASE, folder, "*.csv"))
+    records = []
+    for f in sorted(files):
+        tahun = _extract_year(f)
+        if not tahun: continue
+        try:
+            df = pd.read_csv(f, encoding='utf-8-sig', header=None)
+            data = df.iloc[3:].copy()
+            data.rename(columns={data.columns[0]: "Provinsi", data.columns[3]: "Pct_Sanitasi_Layak"}, inplace=True)
+            data = data[~data["Provinsi"].astype(str).str.strip().str.upper().isin(["PROVINSI", "", "INDONESIA"])]
+            data["Pct_Sanitasi_Layak"] = data["Pct_Sanitasi_Layak"].apply(_to_float_id)
+            data["Tahun"] = tahun
+            data["Provinsi"] = data["Provinsi"].apply(_normalize_prov)
+            records.append(data[["Provinsi", "Tahun", "Pct_Sanitasi_Layak"]].dropna())
+        except Exception:
+            pass
+    df_out = pd.concat(records, ignore_index=True) if records else pd.DataFrame()
+    print(f"{len(df_out)} baris, {df_out['Tahun'].nunique() if not df_out.empty else 0} tahun")
+    return df_out
+
+def load_pekerja_formal() -> pd.DataFrame:
+    """Persentase Tenaga Kerja Formal per Provinsi."""
+    print("  [+] Persentase Tenaga Kerja Formal...", end=" ")
+    folder = "Persentase Tenaga Kerja Formal Menurut Provinsi (Persen)"
+    files = glob.glob(os.path.join(BASE, folder, "*.csv"))
+    records = []
+    for f in sorted(files):
+        tahun = _extract_year(f)
+        if not tahun: continue
+        try:
+            df = pd.read_csv(f, encoding='utf-8-sig', header=None)
+            data = df.iloc[2:].copy()
+            data.rename(columns={data.columns[0]: "Provinsi", data.columns[1]: "Pct_Pekerja_Formal"}, inplace=True)
+            data = data[~data["Provinsi"].astype(str).str.strip().str.upper().isin(["PROVINSI", "", "INDONESIA"])]
+            data["Pct_Pekerja_Formal"] = data["Pct_Pekerja_Formal"].apply(_to_float_id)
+            data["Tahun"] = tahun
+            data["Provinsi"] = data["Provinsi"].apply(_normalize_prov)
+            records.append(data[["Provinsi", "Tahun", "Pct_Pekerja_Formal"]].dropna())
+        except Exception:
+            pass
+    df_out = pd.concat(records, ignore_index=True) if records else pd.DataFrame()
+    print(f"{len(df_out)} baris, {df_out['Tahun'].nunique() if not df_out.empty else 0} tahun")
+    return df_out
+
+def load_rata_rata_lama_sekolah() -> pd.DataFrame:
+    """Rata-rata Lama Sekolah per Provinsi."""
+    print("  [+] Rata-rata Lama Sekolah...", end=" ")
+    folder = "Rata-rata Lama Sekolah (Tahun)"
+    files = glob.glob(os.path.join(BASE, folder, "*.csv"))
+    records = []
+    for f in sorted(files):
+        tahun = _extract_year(f)
+        if not tahun: continue
+        try:
+            df = pd.read_csv(f, encoding='utf-8-sig', header=None)
+            data = df.iloc[2:].copy()
+            data.rename(columns={data.columns[0]: "Provinsi", data.columns[1]: "Rerata_Lama_Sekolah"}, inplace=True)
+            
+            data = data[data["Provinsi"].astype(str).str.strip().str.isupper() == True]
+            data = data[~data["Provinsi"].astype(str).str.strip().str.upper().isin(["PROVINSI", "", "INDONESIA"])]
+            
+            data["Rerata_Lama_Sekolah"] = data["Rerata_Lama_Sekolah"].apply(_to_float_id)
+            data["Tahun"] = tahun
+            data["Provinsi"] = data["Provinsi"].apply(_normalize_prov)
+            records.append(data[["Provinsi", "Tahun", "Rerata_Lama_Sekolah"]].dropna())
+        except Exception:
+            pass
+    df_out = pd.concat(records, ignore_index=True) if records else pd.DataFrame()
+    print(f"{len(df_out)} baris, {df_out['Tahun'].nunique() if not df_out.empty else 0} tahun")
+    return df_out
+
+def load_pmdn() -> pd.DataFrame:
+    """Realisasi Investasi PMDN per Provinsi (Milyar Rupiah)."""
+    print("  [+] Realisasi Investasi PMDN...", end=" ")
+    folder = "Realisasi Investasi Penanaman Modal Dalam Negeri Menurut Lokasi - Jumlah Investasi (Milyar Rupiah)"
+    files = glob.glob(os.path.join(BASE, folder, "*.csv"))
+    records = []
+    for f in sorted(files):
+        tahun = _extract_year(f)
+        if not tahun: continue
+        try:
+            df = pd.read_csv(f, encoding='utf-8-sig', header=None)
+            data = df.iloc[2:].copy()
+            data.rename(columns={data.columns[0]: "Provinsi", data.columns[1]: "Realisasi_Investasi_PMDN"}, inplace=True)
+            data = data[~data["Provinsi"].astype(str).str.strip().str.upper().isin(["PROVINSI", "", "INDONESIA"])]
+            data["Realisasi_Investasi_PMDN"] = data["Realisasi_Investasi_PMDN"].apply(_to_float_id)
+            data["Tahun"] = tahun
+            data["Provinsi"] = data["Provinsi"].apply(_normalize_prov)
+            records.append(data[["Provinsi", "Tahun", "Realisasi_Investasi_PMDN"]].dropna())
+        except Exception:
+            pass
+    df_out = pd.concat(records, ignore_index=True) if records else pd.DataFrame()
+    print(f"{len(df_out)} baris, {df_out['Tahun'].nunique() if not df_out.empty else 0} tahun")
+    return df_out
+
+
+# ===========================================================================
+# [33] WORLD BANK API - Indikator Nasional (Auto-download)
+# ===========================================================================
+def load_worldbank_nasional() -> pd.DataFrame:
+    """[33] Multiple World Bank indicators (national level).
+    File sudah di-download via download_domestic.py.
+    """
+    print("  [33/33] World Bank Indikator Nasional...", end=" ")
+    folder = os.path.join(BASE, "domestic_baru", "WorldBank_Nasional")
+    if not os.path.exists(folder):
+        print("GAGAL – folder tidak ada")
+        return pd.DataFrame()
+    
+    frames = []
+    files_map = {
+        "ppp_conversion_factor.csv": "PPP_Factor",
+        "inflasi_worldbank.csv": "Inflasi_WB_Annual",
+        "gdp_percapita_ppp.csv": "GDP_PerCapita_PPP",
+        "unemployment_worldbank.csv": "Pct_Unemployment_WB",
+        "poverty_headcount.csv": "Poverty_Headcount_Pct",
+    }
+    for filename, col in files_map.items():
+        path = os.path.join(folder, filename)
+        if os.path.exists(path):
+            try:
+                tmp = pd.read_csv(path)
+                if "Tahun" in tmp.columns and col in tmp.columns:
+                    frames.append(tmp[["Tahun", col]])
+            except Exception:
+                pass
+    if not frames:
+        print("GAGAL – tidak ada data")
+        return pd.DataFrame()
+    
+    # Merge semua indikator
+    result = frames[0]
+    for f in frames[1:]:
+        result = result.merge(f, on="Tahun", how="outer")
+    result = result.sort_values("Tahun").reset_index(drop=True)
+    print(f"{len(result)} baris ({result['Tahun'].min()}-{result['Tahun'].max()}, {len(frames)} indikator)")
+    return result
+
+
+# ===========================================================================
+# BUILD OUTPUT 1: clean_inflasi_ts.csv
+# Time-series bulanan untuk Model 1 (LSTM Forecasting)
+# ===========================================================================
+
+def build_inflasi_ts(inflasi, ihk, bi_rate, usd_idr,
+                     inflasi_komp, harga_minyak,
+                     usd_idr_2026=None,
+                     brent=None, dxy=None, fed_rate=None,
+                     gold=None, cpo=None, gpr=None,
+                     fao_fpi=None, cmo_all=None) -> pd.DataFrame:
+    """
+    Gabungkan semua fitur time-series bulanan.
+
+    Fitur domestik:
+    - Inflasi MoM (backbone, target)
+    - IHK (2005–2023 lengkap; 2024–2026 diimputasi dari Inflasi MoM)
+    - BI Rate, USD/IDR
+    - Inflasi Komponen (Inti, Harga Diatur, Bergejolak)
+    - Harga Minyak Mentah (WTI)
+
+    Fitur internasional:
+    - Brent Oil, DXY, Fed Funds Rate, Gold, CPO
+    - Geopolitical Risk Index (GPR)
+    - FAO Food Price Index
+    - 24 komoditas World Bank CMO (Palm Oil, Coal, Coffee, Wheat, dll)
+    """
+    print("\n▶ Membangun clean_inflasi_ts.csv ...")
+
+    ts = inflasi.copy()
+
+    # Merge IHK
+    if not ihk.empty:
+        ts = ts.join(ihk, how="left")
+
+    # Merge BI Rate
+    if not bi_rate.empty:
+        ts = ts.join(bi_rate, how="left")
+
+    # Merge USD/IDR (dari Investing.com, sampai 2025-12)
+    if not usd_idr.empty:
+        ts = ts.join(usd_idr, how="left")
+
+    # Merge USD/IDR 2026 (dari Yahoo, Jan–Mei 2026) — append/update baris 2026
+    if usd_idr_2026 is not None and not usd_idr_2026.empty:
+        for idx, row in usd_idr_2026.iterrows():
+            if idx in ts.index and "USD_IDR" in ts.columns:
+                ts.loc[idx, "USD_IDR"] = row["USD_IDR"]
+            elif "USD_IDR" in ts.columns:
+                ts.loc[idx, "USD_IDR"] = row["USD_IDR"]
+
+    # Merge Inflasi Komponen
+    if not inflasi_komp.empty:
+        ts = ts.join(inflasi_komp, how="left")
+
+    # Merge Harga Minyak Mentah (WTI dari IndexMundi)
+    if not harga_minyak.empty:
+        ts = ts.join(harga_minyak, how="left")
+
+    # Merge fitur internasional
+    for new_df, name in [
+        (brent, "Brent_USD"),
+        (dxy, "DXY"),
+        (fed_rate, "FedRate_Pct"),
+        (gold, "Gold_USD"),
+        (cpo, "CPO_USD"),
+        (gpr, "GPR_Index"),
+        (fao_fpi, "FAO_FPI"),
+    ]:
+        if new_df is not None and not new_df.empty and name in new_df.columns:
+            ts = ts.join(new_df[[name]], how="left")
+
+    # Merge semua komoditas CMO (24 kolom)
+    if cmo_all is not None and not cmo_all.empty:
+        ts = ts.join(cmo_all, how="left")
+
+    # Tambahkan fitur waktu (aman dari leakage)
+    ts["Bulan"] = ts.index.month
+    ts["Tahun"] = ts.index.year
+
+    # --- Imputasi nilai null untuk data 2026 (Maret–Mei) ---
+    # 1. Inflasi_MoM: ambil dari Inflasi_Umum_MoM (mereka identik untuk MoM)
+    if "Inflasi_Umum_MoM" in ts.columns and "Inflasi_MoM" in ts.columns:
+        mask_null = ts["Inflasi_MoM"].isna() & ts["Inflasi_Umum_MoM"].notna()
+        if mask_null.any():
+            ts.loc[mask_null, "Inflasi_MoM"] = ts.loc[mask_null, "Inflasi_Umum_MoM"]
+            print(f"   [IMPUTASI] Inflasi_MoM diisi dari Inflasi_Umum_MoM: {mask_null.sum()} baris")
+
+    # 2. Inflasi Komponen: forward fill (sama dengan nilai bulan lalu)
+    for col in ["Inflasi_Umum_MoM", "Inflasi_Inti_MoM",
+                "Inflasi_HargaDiatur_MoM", "Inflasi_Bergejolak_MoM"]:
+        if col in ts.columns:
+            null_before = ts[col].isna().sum()
+            ts[col] = ts[col].ffill().bfill()
+            null_after = ts[col].isna().sum()
+            if null_after < null_before:
+                print(f"   [IMPUTASI] {col} ffilled: {null_before - null_after} baris")
+
+    # 3. BI Rate: forward fill (BI Rate jarang berubah drastis)
+    if "BI_Rate" in ts.columns:
+        null_before = ts["BI_Rate"].isna().sum()
+        ts["BI_Rate"] = ts["BI_Rate"].ffill().bfill()
+        null_after = ts["BI_Rate"].isna().sum()
+        if null_after < null_before:
+            print(f"   [IMPUTASI] BI_Rate ffilled: {null_before - null_after} baris")
+
+    # 4. IHK: imputasi 2024–2026 pakai rumus IHK_prev × (1 + Inflasi/100)
+    if "IHK" in ts.columns and "Inflasi_MoM" in ts.columns:
+        ihk_null_mask = ts["IHK"].isna()
+        if ihk_null_mask.any():
+            count = 0
+            for idx in ts[ihk_null_mask].index:
+                pos = ts.index.get_loc(idx)
+                if pos > 0 and not np.isnan(ts.iloc[pos - 1]["IHK"]):
+                    inflasi = ts.loc[idx, "Inflasi_MoM"]
+                    if not np.isnan(inflasi):
+                        ts.loc[idx, "IHK"] = ts.iloc[pos - 1]["IHK"] * (1 + inflasi / 100)
+                        count += 1
+            ts["IHK"] = ts["IHK"].ffill().bfill()
+            print(f"   [IMPUTASI] IHK diestimasi dari IHK_prev × (1 + Inflasi): {count} baris")
+
+    # 5. GPR Index: forward fill
+    if "GPR_Index" in ts.columns:
+        null_before = ts["GPR_Index"].isna().sum()
+        ts["GPR_Index"] = ts["GPR_Index"].ffill().bfill()
+        null_after = ts["GPR_Index"].isna().sum()
+        if null_after < null_before:
+            print(f"   [IMPUTASI] GPR_Index ffilled: {null_before - null_after} baris")
+
+    # 6. Brent, CPO, dll: forward fill (mulai data setelah 2005)
+    for col in ["Brent_USD", "DXY", "FedRate_Pct", "Gold_USD", "CPO_USD", "FAO_FPI"]:
+        if col in ts.columns:
+            null_before = ts[col].isna().sum()
+            ts[col] = ts[col].ffill().bfill()
+            null_after = ts[col].isna().sum()
+            if null_after < null_before:
+                print(f"   [IMPUTASI] {col} ffilled: {null_before - null_after} baris")
+
+    # 6b. Semua kolom CMO: forward fill
+    cmo_cols = [c for c in ts.columns if c.startswith("CMO_")]
+    for col in cmo_cols:
+        null_before = ts[col].isna().sum()
+        ts[col] = ts[col].ffill().bfill()
+        null_after = ts[col].isna().sum()
+        if null_after < null_before:
+            print(f"   [IMPUTASI] {col} ffilled: {null_before - null_after} baris")
+
+    # 7. Drop baris dengan Inflasi_MoM null (tidak bisa diimputasi untuk target)
+    if "Inflasi_MoM" in ts.columns:
+        before = len(ts)
+        ts = ts.dropna(subset=["Inflasi_MoM"])
+        dropped = before - len(ts)
+        if dropped > 0:
+            print(f"   [DROP] Baris tanpa Inflasi_MoM: {dropped} (Mei 2026 dst yang belum rilis)")
+
+    # 8. Hitung Inflasi Y-o-Y (Year-on-Year) dan Y-to-D (Year-to-Date)
+    #    Y-o-Y(t) = ((IHK(t) - IHK(t-12)) / IHK(t-12)) * 100
+    #    Y-to-D(tahun, bulan) = ((IHK(tahun, bulan) - IHK(tahun, Jan)) / IHK(tahun, Jan)) * 100
+    if "IHK" in ts.columns and len(ts) >= 13:
+        # Y-o-Y: butuh 12 bulan data sebelumnya
+        ts["IHK_lag12"] = ts["IHK"].shift(12)
+        ts["Inflasi_YoY"] = ((ts["IHK"] - ts["IHK_lag12"]) / ts["IHK_lag12"]) * 100
+        ts.drop(columns=["IHK_lag12"], inplace=True)
+
+        # Y-to-D: bandingkan dengan IHK bulan Januari di tahun yang sama
+        ihk_januari_per_tahun = ts.groupby(ts["Tahun"])["IHK"].first()
+        ts["IHK_jan"] = ts["Tahun"].map(ihk_januari_per_tahun)
+        ts["Inflasi_YtD"] = ((ts["IHK"] - ts["IHK_jan"]) / ts["IHK_jan"]) * 100
+        ts.drop(columns=["IHK_jan"], inplace=True)
+
+        n_yoy = ts["Inflasi_YoY"].notna().sum()
+        n_ytd = ts["Inflasi_YtD"].notna().sum()
+        print(f"   [+] Inflasi_YoY: {n_yoy} baris (Y-o-Y vs 12 bulan lalu)")
+        print(f"   [+] Inflasi_YtD: {n_ytd} baris (Y-to-D vs Januari tahun ini)")
+
+    # Reset index agar Tanggal menjadi kolom biasa
+    ts = ts.reset_index()
+
+    out_path = os.path.join(OUT_DIR, "clean_inflasi_ts.csv")
+    ts.to_csv(out_path, index=False)
+
+    print(f"   ✓ {len(ts)} baris × {len(ts.columns)} kolom")
+    print(f"   ✓ Rentang: {ts['Tanggal'].min().strftime('%b %Y')} – {ts['Tanggal'].max().strftime('%b %Y')}")
+    print(f"   ✓ Kolom: {list(ts.columns)}")
+    print(f"   ✓ Disimpan → {out_path}")
+    return ts
+
+
+# ===========================================================================
+# BUILD OUTPUT 2: clean_daya_beli.csv
+# Panel data provinsi untuk Model 2 (Regresi Daya Beli)
+# ===========================================================================
+
+def build_daya_beli_panel(inflasi, ump, pengeluaran,
+                          pengangguran_sem, tpt_tpak,
+                          pdrb, penduduk_miskin,
+                          gini=None, ipm=None, garis_kemiskinan=None,
+                          jumlah_penduduk=None, urbanisasi=None,
+                          akses_air=None,
+                          konsumsi_protein=None, jumlah_rumah_tangga=None,
+                          worldbank_nasional=None,
+                          indeks_kedalaman_kemiskinan=None,
+                          jumlah_kendaraan=None,
+                          ntp=None,
+                          kepemilikan_hp=None,
+                          sanitasi_layak=None,
+                          pekerja_formal=None,
+                          rerata_lama_sekolah=None,
+                          pmdn=None) -> pd.DataFrame:
+    """
+    Panel data provinsi × tahun:
+    - Pengeluaran per Kapita (target Y)
+    - UMP, TPT, TPAK
+    - PDRB per Kapita
+    - Persentase Penduduk Miskin
+    - Inflasi rata-rata tahunan
+    - Gini, IPM, Garis Kemiskinan (NEW v4)
+    - Jumlah Penduduk, Urbanisasi (NEW v4)
+    - Kredit Konsumsi, Akses Air, Protein, Rumah Tangga (NEW v4)
+    - World Bank indikator nasional (NEW v4)
+    - 8 Variabel Tambahan Baru v5: Kedalaman Kemiskinan, Kendaraan, NTP, HP, Sanitasi, Pekerja Formal, RLS, PMDN
+    """
+    print("\n▶ Membangun clean_daya_beli.csv ...")
+
+    # --- Inflasi → Y-o-Y tahunan (lebih bermakna dibanding rata-rata M-to-M) ---
+    # Hitung IHK Y-o-Y per tahun: rata-rata IHK_YoY bulanan
+    if "IHK" in inflasi.columns and "Inflasi_YoY" in inflasi.columns:
+        # Pakai Inflasi_YoY yang sudah dihitung di build_inflasi_ts
+        inflasi_tahunan = (inflasi.reset_index()
+                           .assign(Tahun=lambda x: x["Tanggal"].dt.year)
+                           .groupby("Tahun")["Inflasi_YoY"]
+                           .mean()
+                           .reset_index()
+                           .rename(columns={"Inflasi_YoY": "Inflasi_Rata_Tahunan"}))
+        print(f"   [+] Inflasi_Rata_Tahunan dihitung dari Inflasi_YoY (lebih informatif)")
+    else:
+        # Fallback ke rata-rata M-to-M
+        inflasi_tahunan = (inflasi.reset_index()
+                           .assign(Tahun=lambda x: x["Tanggal"].dt.year)
+                           .groupby("Tahun")["Inflasi_MoM"]
+                           .mean()
+                           .reset_index()
+                           .rename(columns={"Inflasi_MoM": "Inflasi_Rata_Tahunan"}))
+
+    # --- Normalisasi nama provinsi di semua dataset ---
+    def norm_prov(df, col="Provinsi"):
+        df = df.copy()
+        df[col] = df[col].apply(_normalize_prov)
+        return df
+
+    pen_c = norm_prov(pengeluaran)
+    ump_c = norm_prov(ump)
+    tpt_sem_c = norm_prov(pengangguran_sem) if not pengangguran_sem.empty else pd.DataFrame()
+    tpt_bps_c = norm_prov(tpt_tpak) if not tpt_tpak.empty else pd.DataFrame()
+    pdrb_c = norm_prov(pdrb) if not pdrb.empty else pd.DataFrame()
+    miskin_c = norm_prov(penduduk_miskin) if not penduduk_miskin.empty else pd.DataFrame()
+
+    # --- Merge panel ---
+    panel = pen_c.merge(ump_c, on=["Provinsi", "Tahun"], how="left")
+
+    # TPT: gabungkan dari BPS TPT-TPAK (lebih detail) & fallback ke Semester
+    if not tpt_bps_c.empty:
+        panel = panel.merge(tpt_bps_c[["Provinsi", "Tahun", "TPT_BPS", "TPAK_BPS"]],
+                            on=["Provinsi", "Tahun"], how="left")
+    if not tpt_sem_c.empty:
+        panel = panel.merge(tpt_sem_c[["Provinsi", "Tahun", "TPT"]],
+                            on=["Provinsi", "Tahun"], how="left")
+
+    # Buat kolom TPT_Final: gunakan TPT_BPS jika tersedia, fallback ke TPT semester
+    if "TPT_BPS" in panel.columns and "TPT" in panel.columns:
+        panel["TPT_Final"] = panel["TPT_BPS"].fillna(panel["TPT"])
+        panel.drop(columns=["TPT_BPS", "TPT"], inplace=True)
+        panel.rename(columns={"TPT_Final": "TPT"}, inplace=True)
+    elif "TPT_BPS" in panel.columns:
+        panel.rename(columns={"TPT_BPS": "TPT"}, inplace=True)
+
+    # TPAK
+    if "TPAK_BPS" in panel.columns:
+        panel.rename(columns={"TPAK_BPS": "TPAK"}, inplace=True)
+
+    # PDRB
+    if not pdrb_c.empty:
+        panel = panel.merge(pdrb_c[["Provinsi", "Tahun",
+                                    "PDRB_HargaBerlaku", "PDRB_HargaKonstan"]],
+                            on=["Provinsi", "Tahun"], how="left")
+
+    # Persentase Penduduk Miskin
+    if not miskin_c.empty:
+        panel = panel.merge(miskin_c[["Provinsi", "Tahun", "Pct_Penduduk_Miskin"]],
+                            on=["Provinsi", "Tahun"], how="left")
+
+    # --- DATASET BARU v4 (dari download_domestic.py) ---
+    # Gini Rasio
+    if gini is not None and not gini.empty:
+        panel = panel.merge(gini, on=["Provinsi", "Tahun"], how="left")
+        print(f"   [+] Gini_Rasio: ditambahkan ({len(gini)} baris)")
+
+    # IPM
+    if ipm is not None and not ipm.empty:
+        panel = panel.merge(ipm, on=["Provinsi", "Tahun"], how="left")
+        print(f"   [+] IPM: ditambahkan ({len(ipm)} baris)")
+
+    # Garis Kemiskinan
+    if garis_kemiskinan is not None and not garis_kemiskinan.empty:
+        panel = panel.merge(garis_kemiskinan, on=["Provinsi", "Tahun"], how="left")
+        print(f"   [+] Garis_Kemiskinan: ditambahkan ({len(garis_kemiskinan)} baris)")
+
+    # Jumlah Penduduk
+    if jumlah_penduduk is not None and not jumlah_penduduk.empty:
+        panel = panel.merge(jumlah_penduduk, on=["Provinsi", "Tahun"], how="left")
+        print(f"   [+] Jumlah_Penduduk: ditambahkan ({len(jumlah_penduduk)} baris)")
+
+    # Urbanisasi (Pct_Populasi = % share of total population)
+    if urbanisasi is not None and not urbanisasi.empty:
+        panel = panel.merge(urbanisasi, on=["Provinsi", "Tahun"], how="left")
+        print(f"   [+] Urbanisasi (Pct_Populasi): ditambahkan ({len(urbanisasi)} baris)")
+
+    # Kredit Konsumsi - DIHAPUS (tidak ada data publik)
+
+    # Akses Air Bersih
+    if akses_air is not None and not akses_air.empty:
+        panel = panel.merge(akses_air, on=["Provinsi", "Tahun"], how="left")
+        print(f"   [+] Akses_Air_Bersih: ditambahkan ({len(akses_air)} baris)")
+
+    # Konsumsi Protein (data nasional, join by Tahun saja)
+    if konsumsi_protein is not None and not konsumsi_protein.empty:
+        panel = panel.merge(konsumsi_protein, on="Tahun", how="left")
+        print(f"   [+] Konsumsi_Protein (nasional): ditambahkan ({len(konsumsi_protein)} baris)")
+
+    # Jumlah Rumah Tangga - SKIP (data berupa persentase distribusi, bukan jumlah absolut)
+
+    # World Bank Nasional (tidak per-provinsi, join by Tahun)
+    if worldbank_nasional is not None and not worldbank_nasional.empty:
+        panel = panel.merge(worldbank_nasional, on="Tahun", how="left")
+        print(f"   [+] WorldBank_Nasional: ditambahkan ({len(worldbank_nasional)} baris)")
+
+    # --- DATASET BARU v5 (Tambahan manual) ---
+    # Indeks Kedalaman Kemiskinan
+    if indeks_kedalaman_kemiskinan is not None and not indeks_kedalaman_kemiskinan.empty:
+        panel = panel.merge(indeks_kedalaman_kemiskinan, on=["Provinsi", "Tahun"], how="left")
+        print(f"   [+] Indeks_Kedalaman_Kemiskinan: ditambahkan ({len(indeks_kedalaman_kemiskinan)} baris)")
+
+    # Jumlah Kendaraan
+    if jumlah_kendaraan is not None and not jumlah_kendaraan.empty:
+        panel = panel.merge(jumlah_kendaraan, on=["Provinsi", "Tahun"], how="left")
+        print(f"   [+] Total_Kendaraan: ditambahkan ({len(jumlah_kendaraan)} baris)")
+
+    # NTP
+    if ntp is not None and not ntp.empty:
+        panel = panel.merge(ntp, on=["Provinsi", "Tahun"], how="left")
+        print(f"   [+] NTP: ditambahkan ({len(ntp)} baris)")
+
+    # Kepemilikan HP
+    if kepemilikan_hp is not None and not kepemilikan_hp.empty:
+        panel = panel.merge(kepemilikan_hp, on=["Provinsi", "Tahun"], how="left")
+        print(f"   [+] Pct_Kepemilikan_HP: ditambahkan ({len(kepemilikan_hp)} baris)")
+
+    # Sanitasi Layak
+    if sanitasi_layak is not None and not sanitasi_layak.empty:
+        panel = panel.merge(sanitasi_layak, on=["Provinsi", "Tahun"], how="left")
+        print(f"   [+] Pct_Sanitasi_Layak: ditambahkan ({len(sanitasi_layak)} baris)")
+
+    # Pekerja Formal
+    if pekerja_formal is not None and not pekerja_formal.empty:
+        panel = panel.merge(pekerja_formal, on=["Provinsi", "Tahun"], how="left")
+        print(f"   [+] Pct_Pekerja_Formal: ditambahkan ({len(pekerja_formal)} baris)")
+
+    # Rerata Lama Sekolah
+    if rerata_lama_sekolah is not None and not rerata_lama_sekolah.empty:
+        panel = panel.merge(rerata_lama_sekolah, on=["Provinsi", "Tahun"], how="left")
+        print(f"   [+] Rerata_Lama_Sekolah: ditambahkan ({len(rerata_lama_sekolah)} baris)")
+
+    # PMDN
+    if pmdn is not None and not pmdn.empty:
+        panel = panel.merge(pmdn, on=["Provinsi", "Tahun"], how="left")
+        print(f"   [+] Realisasi_Investasi_PMDN: ditambahkan ({len(pmdn)} baris)")
+
+    # Inflasi rata-rata tahunan
+    panel = panel.merge(inflasi_tahunan, on="Tahun", how="left")
+
+    # --- Filter tahun yang memiliki data inti lengkap ---
+    # Default: 2021–2025 (overlap UMP & Pengeluaran).
+    # Jika dataset baru (IPM, Gini, dll) lebih baru/range-nya berbeda,
+    # kita adaptif: gunakan 2017-2025 jika data lebih lengkap tersedia.
+    tahun_min_default = 2021
+    tahun_max_default = 2025
+    
+    # Cek apakah ada dataset baru dengan tahun di luar range default
+    all_year_min = tahun_min_default
+    all_year_max = tahun_max_default
+    for new_df in [gini, ipm, garis_kemiskinan, jumlah_penduduk, urbanisasi,
+                   akses_air, konsumsi_protein, jumlah_rumah_tangga,
+                   indeks_kedalaman_kemiskinan, jumlah_kendaraan, ntp,
+                   kepemilikan_hp, sanitasi_layak, pekerja_formal,
+                   rerata_lama_sekolah, pmdn]:
+        if new_df is not None and not new_df.empty and 'Tahun' in new_df.columns:
+            try:
+                ymin = int(new_df['Tahun'].min())
+                ymax = int(new_df['Tahun'].max())
+                all_year_min = min(all_year_min, ymin)
+                all_year_max = max(all_year_max, ymax)
+            except (ValueError, TypeError):
+                pass
+    
+    # Pakai range yang overlap dengan semua data
+    panel = panel[panel["Tahun"].between(tahun_min_default, tahun_max_default)]
+
+    # --- Drop baris dengan kolom kunci kosong ---
+    key_cols = ["Total_Pengeluaran", "UMP", "Inflasi_Rata_Tahunan"]
+    panel = panel.dropna(subset=key_cols)
+
+    # --- Imputasi NaN untuk fitur baru (carry-forward per provinsi) ---
+    # Fitur IPM, Jumlah_Penduduk, World Bank, dll hanya tersedia sampai tahun tertentu.
+    # Untuk tahun 2025 (yang punya UMP tapi belum punya IPM/WorldBank), 
+    # kita carry-forward dari tahun terakhir yang tersedia.
+    nan_before = panel.isna().sum().sum()
+    if nan_before > 0:
+        # Forward + backward fill per provinsi dalam satu langkah
+        num_cols = panel.select_dtypes(include=[np.number]).columns.tolist()
+        panel[num_cols] = panel.groupby('Provinsi')[num_cols].transform(lambda x: x.ffill().bfill())
+        nan_after = panel.isna().sum().sum()
+        if nan_before > nan_after:
+            print(f"   [IMPUTASI] Carry-forward per provinsi: {nan_before - nan_after} NaN diisi")
+            print(f"   [IMPUTASI] Sisa NaN: {nan_after}")
+
+    # --- Urutan kolom final ---
+    col_order = [
+        "Provinsi", "Tahun",
+        # Target & komponennya
+        "Pengeluaran_Makanan", "Pengeluaran_Bukan_Makanan", "Total_Pengeluaran",
+        # Variabel original
+        "UMP", "TPT", "TPAK",
+        "PDRB_HargaBerlaku", "PDRB_HargaKonstan",
+        "Pct_Penduduk_Miskin",
+        "Inflasi_Rata_Tahunan",
+        # BARU v4 - data provinsi (manual scraping)
+        "Gini_Rasio", "IPM", "Garis_Kemiskinan",
+        "Jumlah_Penduduk", "Pct_Populasi",
+        "Kepadatan_Penduduk", "Rasio_Jenis_Kelamin", "Laju_Pertumbuhan_Penduduk",
+        "Pct_Akses_Air_Bersih", "Protein_gram_per_hari", "Kalori_kkal_per_hari",
+        "Jumlah_Rumah_Tangga",
+        # BARU v4 - World Bank nasional
+        "PPP_Factor", "Inflasi_WB_Annual", "GDP_PerCapita_PPP",
+        "Pct_Unemployment_WB", "Poverty_Headcount_Pct",
+        # BARU v5 - tambahan manual
+        "Indeks_Kedalaman_Kemiskinan", "Total_Kendaraan", "NTP",
+        "Pct_Kepemilikan_HP", "Pct_Sanitasi_Layak", "Pct_Pekerja_Formal",
+        "Rerata_Lama_Sekolah", "Realisasi_Investasi_PMDN",
+    ]
+    col_order = [c for c in col_order if c in panel.columns]
+    panel = panel[col_order].sort_values(["Tahun", "Provinsi"]).reset_index(drop=True)
+
+    out_path = os.path.join(OUT_DIR, "clean_daya_beli.csv")
+    panel.to_csv(out_path, index=False)
+
+    print(f"   ✓ {len(panel)} baris × {len(panel.columns)} kolom")
+    print(f"   ✓ Provinsi: {panel['Provinsi'].nunique()}, "
+          f"Tahun: {sorted(panel['Tahun'].unique())}")
+    print(f"   ✓ Kolom: {list(panel.columns)}")
+    print(f"   ✓ Disimpan → {out_path}")
+    return panel
+
+
+
+# ===========================================================================
+# SUMMARY HELPER
+# ===========================================================================
+
+def print_summary(df: pd.DataFrame, name: str):
+    print(f"\n{'─'*65}")
+    print(f"  Preview: {name}")
+    print(f"{'─'*65}")
+    print(f"  Shape   : {df.shape}")
+    print(f"  Kolom   : {list(df.columns)}")
+    null_dict = df.isnull().sum().to_dict()
+    null_str = {k: v for k, v in null_dict.items() if v > 0}
+    print(f"  Null (non-zero): {null_str if null_str else 'tidak ada'}")
+    print(f"\n  5 baris pertama:")
+    print(df.head().to_string(index=False))
+
+
+# ===========================================================================
+# MAIN
+# ===========================================================================
+
+def main():
+    print("=" * 65)
+    print("  PREPROCESSING PIPELINE v3 – Kelompok E ML UNAIR")
+    print("=" * 65)
+    print("\n>> Memuat semua dataset raw...\n")
+
+    # --- Lokal (existing) ---
+    print("[LOKAL]")
+    inflasi       = load_inflasi_mom()        # [1]
+    ihk           = load_ihk()                # [2]
+    # [3] Inflasi Y-to-D: referensi saja, tidak dimasukkan ke model
+    bi_rate       = load_bi_rate()            # [4]
+    ump           = load_ump()                # [5]
+    pengeluaran   = load_pengeluaran()        # [6]
+    usd_idr       = load_usd_idr()            # [7]
+    pengangguran_sem = load_pengangguran_semester()  # [8]
+    tpt_tpak      = load_tpt_tpak()           # [9]
+    pdrb          = load_pdrb()               # [10]
+    penduduk_miskin = load_penduduk_miskin()  # [11]
+    inflasi_komp  = load_inflasi_komponen()   # [12]
+    harga_minyak  = load_harga_minyak()       # [13]
+
+    # --- Lokal (BARU v3) ---
+    print("\n[LOKAL - BARU]")
+    usd_idr_2026  = load_usd_idr_2026()       # [14] USD/IDR Jan–Mei 2026
+
+    # --- Internasional (BARU v3) ---
+    print("\n[INTERNASIONAL - BARU]")
+    brent         = load_brent_oil()          # [15]
+    dxy           = load_dxy()                # [16]
+    fed_rate      = load_fed_rate()           # [17]
+    gold          = load_gold()               # [18]
+    cpo           = load_cpo()                # [19]
+    gpr           = load_gpr()                # [20] Geopolitical Risk Index
+    fao_fpi       = load_fao_fpi()            # [21] FAO Food Price Index
+    cmo_all       = load_cmo_commodities()    # [22] Semua komoditas World Bank CMO
+
+    # --- LOKAL BARU v4 (per provinsi - manual download) ---
+    print("\n[LOKAL BARU v4 - Per Provinsi]")
+    gini              = load_gini_rasio()              # [15]
+    ipm               = load_ipm()                       # [16]
+    garis_kemiskinan  = load_garis_kemiskinan()         # [17]
+    jumlah_penduduk   = load_jumlah_penduduk()           # [18]
+    urbanisasi        = load_urbanisasi()                # [19]
+    # [20] Inflasi per Kota - dihapus (duplikat dengan Inflasi Bulanan M-to-M)
+    # [21] Kredit Konsumsi - dihapus (tidak ada data publik)
+    akses_air         = load_akses_air()                 # [22]
+    konsumsi_protein  = load_konsumsi_protein()          # [23]
+    jumlah_rt         = load_jumlah_rumah_tangga()       # [24]
+
+    # --- WORLD BANK API (nasional, auto-download) ---
+    print("\n[WORLD BANK API - Nasional]")
+    worldbank_nasional = load_worldbank_nasional()       # [25]
+
+    # --- LOKAL BARU v5 (tambahan manual download) ---
+    print("\n[LOKAL BARU v5 - Tambahan Manual]")
+    indeks_kedalaman_kemiskinan = load_indeks_kedalaman_kemiskinan()
+    jumlah_kendaraan  = load_jumlah_kendaraan()
+    ntp               = load_ntp()
+    kepemilikan_hp    = load_kepemilikan_hp()
+    sanitasi_layak    = load_sanitasi_layak()
+    pekerja_formal    = load_pekerja_formal()
+    rerata_lama_sekolah = load_rata_rata_lama_sekolah()
+    pmdn              = load_pmdn()
+
+    # Build output files
+    print("\n[BUILD]")
+    ts    = build_inflasi_ts(inflasi, ihk, bi_rate, usd_idr,
+                              inflasi_komp, harga_minyak,
+                              usd_idr_2026=usd_idr_2026,
+                              brent=brent, dxy=dxy, fed_rate=fed_rate,
+                              gold=gold, cpo=cpo, gpr=gpr,
+                              fao_fpi=fao_fpi, cmo_all=cmo_all)
+    panel = build_daya_beli_panel(inflasi, ump, pengeluaran,
+                                    pengangguran_sem, tpt_tpak,
+                                    pdrb, penduduk_miskin,
+                                    gini=gini, ipm=ipm,
+                                    garis_kemiskinan=garis_kemiskinan,
+                                    jumlah_penduduk=jumlah_penduduk,
+                                    urbanisasi=urbanisasi,
+                                    akses_air=akses_air,
+                                    konsumsi_protein=konsumsi_protein,
+                                    jumlah_rumah_tangga=jumlah_rt,
+                                    worldbank_nasional=worldbank_nasional,
+                                    indeks_kedalaman_kemiskinan=indeks_kedalaman_kemiskinan,
+                                    jumlah_kendaraan=jumlah_kendaraan,
+                                    ntp=ntp,
+                                    kepemilikan_hp=kepemilikan_hp,
+                                    sanitasi_layak=sanitasi_layak,
+                                    pekerja_formal=pekerja_formal,
+                                    rerata_lama_sekolah=rerata_lama_sekolah,
+                                    pmdn=pmdn)
+
+    # Ringkasan
+    print_summary(ts, "clean_inflasi_ts.csv")
+    print_summary(panel, "clean_daya_beli.csv")
+
+    print(f"\n{'='*65}")
+    print("  ✅ Preprocessing selesai!")
+    print(f"  Output disimpan di: datasets/processed/")
+    print(f"{'='*65}")
+
+
+if __name__ == "__main__":
+    main()

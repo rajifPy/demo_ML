@@ -28,10 +28,23 @@ BASE_NUMERIC_FEATURES = [
     "Pct_Populasi",
     "Pct_Akses_Air_Bersih",
     "Protein_gram_per_hari",
+    "Kalori_kkal_per_hari",
+    "Kepadatan_Penduduk",
+    "Rasio_Jenis_Kelamin",
+    "Laju_Pertumbuhan_Penduduk",
     "Inflasi_WB_Annual",
     "GDP_PerCapita_PPP",
     "Pct_Unemployment_WB",
     "Poverty_Headcount_Pct",
+    # NEW v5
+    "Indeks_Kedalaman_Kemiskinan",
+    "Total_Kendaraan",
+    "NTP",
+    "Pct_Kepemilikan_HP",
+    "Pct_Sanitasi_Layak",
+    "Pct_Pekerja_Formal",
+    "Rerata_Lama_Sekolah",
+    "Realisasi_Investasi_PMDN",
 ]
 
 DERIVED_NUMERIC_FEATURES = [
@@ -60,12 +73,26 @@ DEPLOYMENT_NUMERIC_FEATURE_CANDIDATES = [
     "Garis_Kemiskinan",
     "Jumlah_Penduduk",
     "Pct_Populasi",
+    "Kepadatan_Penduduk",
+    "Rasio_Jenis_Kelamin",
+    "Laju_Pertumbuhan_Penduduk",
     "Pct_Akses_Air_Bersih",
     "Protein_gram_per_hari",
+    "Kalori_kkal_per_hari",
     "Inflasi_WB_Annual",
     "GDP_PerCapita_PPP",
     "Pct_Unemployment_WB",
     "Poverty_Headcount_Pct",
+    # NEW v5
+    "Indeks_Kedalaman_Kemiskinan",
+    "Total_Kendaraan",
+    "NTP",
+    "Pct_Kepemilikan_HP",
+    "Pct_Sanitasi_Layak",
+    "Pct_Pekerja_Formal",
+    "Rerata_Lama_Sekolah",
+    "Realisasi_Investasi_PMDN",
+    # Derived
     "Year_Index",
     "Inflation_Deflator",
     "Real_UMP",
@@ -113,7 +140,8 @@ def prepare_daya_beli_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     prepared["Real_UMP_Growth"] = prepared["Real_UMP_Growth"].fillna(0.0)
     prepared["PDRB_HargaKonstan_Growth"] = prepared["PDRB_HargaKonstan_Growth"].fillna(0.0)
     prepared["TPT_Growth"] = prepared["TPT_Growth"].fillna(0.0)
-    prepared["Prev_Total_Pengeluaran_Riil"] = prepared["Prev_Total_Pengeluaran_Riil"].fillna(prepared[TARGET_COLUMN])
+    # No target leakage: let simpleimputer fill it using median/mean instead of the current target value
+    # prepared["Prev_Total_Pengeluaran_Riil"] = prepared["Prev_Total_Pengeluaran_Riil"].fillna(prepared[TARGET_COLUMN])
 
     prepared["UMP_x_PDRB"] = prepared["Real_UMP"] * prepared["PDRB_HargaKonstan"]
     prepared["Inflasi_x_TPT"] = prepared["Inflasi_Rata_Tahunan"] * prepared["TPT"]

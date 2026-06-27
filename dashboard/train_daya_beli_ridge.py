@@ -78,7 +78,7 @@ def build_pipeline(numeric_features, categorical_features):
     )
 
 
-def iter_expanding_year_folds(df, min_train_years=1):
+def iter_expanding_year_folds(df, min_train_years=2):
     unique_years = sorted(df[YEAR_COLUMN].unique().tolist())
     for idx in range(min_train_years, len(unique_years)):
         train_years = unique_years[:idx]
@@ -90,7 +90,7 @@ def iter_expanding_year_folds(df, min_train_years=1):
         yield train_years, validation_year, train_df, validation_df
 
 
-def evaluate_year_folds(df, numeric_features, categorical_features, alpha, min_train_years=1):
+def evaluate_year_folds(df, numeric_features, categorical_features, alpha, min_train_years=2):
     folds = []
     feature_columns = numeric_features + categorical_features
 
@@ -249,7 +249,7 @@ def run_walk_forward(df, numeric_features, categorical_features, alpha):
         numeric_features=numeric_features,
         categorical_features=categorical_features,
         alpha=alpha,
-        min_train_years=1,
+        min_train_years=2,
     )
 
 
