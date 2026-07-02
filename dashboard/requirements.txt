@@ -1,0 +1,9 @@
+django==6.0.3
+gunicorn==23.0.0
+whitenoise==6.8.2
+pandas
+numpy
+scikit-learn
+statsmodels
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.12.1+cpu
