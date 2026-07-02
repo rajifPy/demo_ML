@@ -1,9 +1,17 @@
-django==6.0.3
-gunicorn==23.0.0
-whitenoise==6.8.2
 pandas
 numpy
+matplotlib
+seaborn
+openpyxl
 scikit-learn
+joblib
 statsmodels
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.12.1+cpu
+prophet
+xgboost
+linearmodels
+torch
+django
+yfinance
+fredapi
+wbdata
+pandas-datareader
